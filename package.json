@@ -39,7 +39,8 @@
     "caldav": "node scripts/caldav.mjs",
     "seatax": "node scripts/seatax.mjs",
     "printed-rotation": "OFFSHORE_REPORT_ROUTE=/rotation node scripts/printed.mjs",
-    "fits": "node scripts/fits.mjs"
+    "fits": "node scripts/fits.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "keywords": [],
   "author": "",
