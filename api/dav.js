@@ -1,24 +1,10 @@
-/**
- * The CalDAV calendar account (iPhone/Mac Calendar, DAVx5), answered by the pure
- * `davAnswer`. Clients sign in with the calendar password, never the site session,
- * checked against the plan it names and only while that plan still carries that code.
- *
- * Apps reach this through a proxy on our own server (https://DAV_HOST/dav/...,
- * forwarded as /api/dav?p=...) because the platform edge answers 405 to a PROPFIND
- * sent through a rewrite or dynamic route, then challenges that IP site-wide with a
- * browser-only page. The proxy holds no secrets.
- */
 import { db, isId } from "./_supabase.js";
 import { davSays } from "./_ticket.js";
 import { davAnswer } from "../src/engine/caldav.js";
 import { pruneTrash } from "../src/engine/rotation.js";
 
-/** Where calendar apps are sent: the proxy on our own server. */
 export const DAV_HOST = process.env.DAV_HOST || "docs7p.northwind.example";
 
-/* The request's body as text. The platform reads bodies of the types it
-   knows and hands the rest over as bytes; an XML or calendar body with no
-   type at all is read from the stream. */
 async function bodyOf(req) {
   try {
     const b = req.body;
@@ -43,7 +29,6 @@ const refuse = (res) => {
 export default async function handler(req, res) {
   res.setHeader("cache-control", "private, no-store");
   const path = String(req.query?.p || "");
-  /* Where a calendar app looks first when it is given only the site's name. */
   if (path === ".well-known") {
     res.setHeader("Location", `https://${DAV_HOST}/dav/`);
     return res.status(301).send("");
@@ -62,9 +47,6 @@ export default async function handler(req, res) {
     const body = await bodyOf(req);
     const [tick] = await db(`offshore_report_documents?user_id=eq.${said.u}&kind=eq.certificates&select=data&order=updated_at.desc&limit=1`) || [];
     const today = new Date().toISOString().slice(0, 10);
-    /* Read, answer, and write back only if nobody wrote in between — a phone
-       and a Mac sending at once, or the site saving. Whoever loses reads the
-       plan again and is answered from that. */
     for (let tries = 0; tries < 4; tries += 1) {
       const [row] = await db(`offshore_report_documents?id=eq.${said.d}&user_id=eq.${said.u}&kind=eq.rotation&select=data,updated_at`) || [];
       if (!row?.data || row.data.dav !== said.n) return refuse(res);

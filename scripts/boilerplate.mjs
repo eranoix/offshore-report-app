@@ -1,7 +1,3 @@
-/**
- * Writes down every line the blank forms print (titles, labels, footers) so indexing can
- * subtract that furniture; indexed as writing, it wins searches over what a person wrote.
- */
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +12,6 @@ const entities = (s) =>
     .replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
     .replace(/&amp;/g, "&");
 
-/* The same reading the library does, so the lines compare. */
 function wordsOf(bytes) {
   const zip = unzipSync(new Uint8Array(bytes));
   let out = "";
@@ -40,10 +35,6 @@ for (const file of (await readdir(FORMS)).filter((f) => f.endsWith(".docx"))) {
 }
 
 const lines = [...printed].sort();
-/* A scan is read by a machine that breaks the lines somewhere else and turns
-   an en dash into a hyphen, so the same sentence never matches line for line.
-   One flattened run of everything the forms print lets a line be recognised
-   as furniture by being part of it. */
 const flat = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 const blob = lines.map(flat).join(" ");
 

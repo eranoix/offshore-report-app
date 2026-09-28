@@ -1,10 +1,3 @@
-/**
- * Lays the four blank forms out once and writes their pages and the map of their
- * blanks into the build, so the offline copy (no server) can still show the
- * company's page with the writing placed on it. Run whenever a form changes:
- *
- *     node scripts/blank-pages.mjs
- */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, copyFile, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -17,7 +10,6 @@ const run = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const FORMS = join(here, "..", "src", "forms");
 
-/** The lines each form prints before a blank, in the form's own words. */
 const LINES = {
   witness: ["WITNESS", "POSITION & SITE", "NAME FOR WHOM TESTIMONY IS FOR", "RELATIONSHIP WITH CANDIDATE"],
   observation: ["ASSESSOR", "POSITION & SITE", "NAME OF CANDIDATE OBSERVED", "RELATIONSHIP WITH CANDIDATE"],

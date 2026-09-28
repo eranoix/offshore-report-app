@@ -1,18 +1,9 @@
-/**
- * The ledger written out as a workbook that still calculates: his own column
- * names, and live formulas with this module's values cached beside them, so it
- * reads right in a non-calculating viewer and Excel recalculates on load
- * (`fullCalcOnLoad`). Entries get one fixed timestamp so the same ledger packs
- * to the same bytes. Dates are Excel serials: days since 1899-12-30.
- */
 import { zipSync, strToU8 } from "fflate";
 import { dayOf, runLedger } from "./seatax.js";
 
-/* The day-zero Excel counts from: 1899-12-30, as a UTC day number. */
 const EXCEL_EPOCH = dayOf("1899-12-30");
 const serialOf = (iso) => dayOf(iso) - EXCEL_EPOCH;
 
-/* His own headings, in his own order and his own spelling. */
 export const COLUMNS = [
   "Day Left UK",
   "Day Return UK",
@@ -34,19 +25,11 @@ const esc = (t) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-/* The cell styles, by the index they take in cellXfs below. */
 const S = { plain: 0, date: 1, whole: 2, tenth: 3, head: 4 };
 
 const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-/**
- * One cell.
- *
- * `f` is the formula without its leading `=`, `v` the value to cache beside
- * it. A string result is typed `str`, which is what Excel writes for a formula
- * that came out as text; a number carries no type at all, which is the default.
- */
 function cell(ref, { s = S.plain, f = null, v = null, shared = null } = {}) {
   const text = typeof v === "string";
   const type = shared != null ? ' t="s"' : (f && text ? ' t="str"' : "");
@@ -57,15 +40,10 @@ function cell(ref, { s = S.plain, f = null, v = null, shared = null } = {}) {
   return `<c r="${ref}" s="${s}"${type}>${body}</c>`;
 }
 
-/**
- * The workbook. `spare` is how many empty pairs of rows go under the last trip
- * with formulas in place, so a trip is added by typing two dates.
- */
 export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 120 } = {}) {
   const led = runLedger(absences);
   const rows = led.rows;
 
-  /* Shared strings, in the order they are first wanted. */
   const strings = [];
   const seen = new Map();
   const shared = (text) => {
@@ -80,8 +58,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
   const lastRow = 1 + (rows.length + spare) * 2;
   const xml = [];
 
-  /* Row 1: the headings, and the sum of the days-out column off to the side,
-     which is the one number his sheet keeps outside the grid. */
   xml.push(`<row r="1" ht="38.25" customHeight="1">`);
   COLUMNS.forEach((title, i) => {
     xml.push(cell(`${String.fromCharCode(65 + i)}1`, { s: S.head, shared: shared(title) }));
@@ -89,9 +65,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
   xml.push(cell("L1", { s: S.whole, f: `SUM(C3:C${lastRow})`, v: led.outDays }));
   xml.push("</row>");
 
-  /* Each absence is two rows: the one he left on and the one he came back on.
-     The formulas are his, cell for cell, so that a reader with both files open
-     can put a finger on the same cell in each. */
   for (let i = 0; i < rows.length + spare; i += 1) {
     const r = rows[i] || null;
     const leave = 2 + i * 2;
@@ -101,7 +74,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
     const L = [`<row r="${leave}">`];
     L.push(cell(`A${leave}`, { s: S.date, v: r?.left ? serialOf(r.left) : null }));
     if (!first) {
-      /* Days in: from the day he landed last time to the day he left this. */
       L.push(cell(`D${leave}`, {
         s: S.whole,
         f: `IF(A${leave}=0,"-",A${leave}-B${leave - 1})`,
@@ -112,7 +84,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
         f: `IF(A${leave}=0,"-",E${leave - 1}+D${leave}+C${leave})`,
         v: r?.totalAtLeaving ?? "-",
       }));
-      /* The running UK total, which is the number every test below is against. */
       L.push(cell(`G${leave}`, {
         s: S.whole,
         f: `IF(A${leave}=0,"-",D${leave}+G${leave - 2})`,
@@ -140,23 +111,16 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
       f: `IF(B${back}=0,"-",E${back}*0.5)`,
       v: r?.half ?? "-",
     }));
-    /* The test itself, and it is strictly greater than: a margin of exactly
-       nought still passes. */
     B.push(cell(`H${back}`, {
       s: S.plain,
       f: `IF(B${back}=0,"-",IF(G${leave}>F${back},"YES","NO"))`,
       v: r && r.failed != null ? (r.failed ? "YES" : "NO") : "-",
     }));
-    /* The date in the diary. The ×2 is here: the margin is in half-days and
-       the days he may stay are twice it, which is why the formula doubles. */
     B.push(cell(`I${back}`, {
       s: S.date,
       f: `IF(B${back}=0,"*",B${back}+(2*(F${back}-G${leave})))`,
       v: r?.failOn ? serialOf(r.failOn) : "*",
     }));
-    /* DAYS IN HAND, in half-days — shown to a decimal place, because his own
-       sheet formats this column as a whole number and a margin of 36.5 has
-       been reading as 37 in it for years. */
     B.push(cell(`K${back}`, {
       s: S.tenth,
       f: `IF(B${back}=0,"*",F${back}-G${leave})`,
@@ -190,8 +154,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
     + `<fileVersion appName="xl"/><workbookPr/>`
     + `<bookViews><workbookView xWindow="0" yWindow="0" windowWidth="24000" windowHeight="14000"/></bookViews>`
     + `<sheets><sheet name="${esc(name)}" sheetId="1" r:id="rId1"/></sheets>`
-    /* Recalculate the lot on the way in: the cached numbers are this module's
-       and Excel gets the last word on them. */
     + `<calcPr calcId="0" fullCalcOnLoad="1"/></workbook>`;
 
   const styles = `${HEAD}<styleSheet xmlns="${NS}">`
@@ -244,8 +206,6 @@ export function seataxWorkbook(absences = [], { name = "SEATAX DAYS", spare = 12
   });
 }
 
-/* The day the claim started, used as every entry's timestamp so that the same
-   ledger always packs to the same bytes. */
 const STAMP = new Date(Date.UTC(2012, 3, 24));
 
 function pack(parts) {

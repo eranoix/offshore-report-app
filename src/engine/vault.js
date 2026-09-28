@@ -1,22 +1,12 @@
-/**
- * What this browser keeps, and whose it is. Every key belongs to an account,
- * nothing is read before we know who is asking, and signing in as somebody else
- * wipes what the browser was holding, so a shared laptop never shows the last
- * person's paperwork.
- */
 const OWNER = "offshore-report:owner";
 
-/* The keys the tool writes. Anything here is personal and is cleared when the
-   account changes or the session ends. */
 const MINE = ["trip-feedback:doc", "trip-feedback:work", "trip-feedback:profile", "caap:state", "offshore-report:phrases",
   "rotation:plan", "rotation:certs"];
 
 let who = "";
 
-/** Who the browser currently holds documents for. */
 export const owner = () => who;
 
-/** The key this account writes under. */
 export const keyFor = (base) => (who ? `${base}@${who}` : "");
 
 function wipe() {
@@ -25,7 +15,6 @@ function wipe() {
     for (let i = 0; i < localStorage.length; i += 1) {
       const key = localStorage.key(i);
       if (!key) continue;
-      /* Both shapes: the old shared keys, and any account's own. */
       if (MINE.includes(key) || MINE.some((base) => key.startsWith(`${base}@`))) drop.push(key);
     }
     drop.forEach((key) => localStorage.removeItem(key));
@@ -34,11 +23,6 @@ function wipe() {
   }
 }
 
-/**
- * Called once the site knows who is signed in. A different person — or the
- * first time, when the old shared keys may still be lying about — and the
- * browser is emptied before a single page reads from it.
- */
 export function claim(id) {
   const next = String(id || "");
   let last = "";
@@ -59,11 +43,6 @@ export function claim(id) {
   return who;
 }
 
-/**
- * Signing out takes the paperwork off the machine with it: the working copies,
- * anything held for the session, and any answer the browser cached on this
- * person's behalf.
- */
 export function release() {
   wipe();
   try {
@@ -76,7 +55,6 @@ export function release() {
   } catch {
     /* no storage */
   }
-  /* The offline copy of the app may hold pages fetched while signed in. */
   try {
     if (typeof caches !== "undefined" && caches.keys) {
       caches.keys().then((names) =>
@@ -97,9 +75,6 @@ export function release() {
   who = "";
 }
 
-/* Machine settings, not personal work: they survive signing out on purpose. They
-   still go through here so a key holding real work cannot be added on the wrong
-   side by accident. */
 const SETTINGS = ["offshore-report:sidebar", "caap:zoom"];
 
 export function readSetting(key, fallback = "") {

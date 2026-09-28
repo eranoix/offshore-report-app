@@ -1,12 +1,3 @@
-/**
- * Runs a command with the drawing engine (`vps/docx-render/server.mjs`) up. When
- * DOCX_KEY is not set, one is started on 127.0.0.1:8791 (or DOCX_PORT) with a
- * throwaway key for as long as the command runs.
- *
- *   node scripts/with-engine.mjs "<command>"
- *
- * Needs `soffice` (LibreOffice) and `pdftotext` (poppler) on the PATH.
- */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -18,9 +9,6 @@ if (!command) {
   process.exit(2);
 }
 
-/* The checks default to this address, so the local engine takes it too.
-   DOCX_PORT moves both: the engine listens there, and every check reads the
-   same variable, so a machine that already uses 8791 can still run the suite. */
 const PORT = Number(process.env.DOCX_PORT || 8791);
 const env = { ...process.env, DOCX_PORT: String(PORT) };
 let engine = null;

@@ -1,4 +1,3 @@
-/** Saved trip feedbacks. One row per document, always scoped to who is asking. */
 import crypto from "node:crypto";
 import { db, isId, requireSession } from "./_supabase.js";
 import { davFor, feedFor, feedSays } from "./_ticket.js";
@@ -7,10 +6,6 @@ import { profileOf } from "../src/engine/caldav.js";
 import { DAV_HOST } from "./dav.js";
 
 export default async function handler(req, res) {
-  /* The rotation as a calendar feed. Calendar services fetch it with no session,
-     so it answers to its key: signed by this server, naming one plan, and valid
-     only while that plan still carries the code the key was made with. It is the
-     only request here answered before the session is asked for. */
   if (req.method === "GET" && req.query?.t === "ics") {
     const said = feedSays(req.query?.k);
     if (!said || !isId(said.d)) return res.status(404).send("No such calendar.");
@@ -25,8 +20,6 @@ export default async function handler(req, res) {
       });
       res.setHeader("content-type", "text/calendar; charset=utf-8");
       res.setHeader("content-disposition", 'inline; filename="rotation.ics"');
-      /* Private: never kept by the CDN, or an address stopped with "Stop sharing"
-         goes on being answered from the cache. */
       res.setHeader("cache-control", "private, no-store");
       return res.status(200).send(body);
     } catch {
@@ -37,10 +30,6 @@ export default async function handler(req, res) {
   const who = requireSession(req, res);
   if (!who) return;
 
-  /* A calendar he keeps elsewhere, fetched here because those servers refuse
-     the browser from another site. It needs his session, and only the calendar
-     services are reachable: a server that fetches any address it is handed can
-     be pointed at things that are not calendars. */
   if (req.method === "GET" && req.query?.t === "cal") {
     let url;
     try { url = new URL(String(req.query?.u || "").replace(/^webcal:/i, "https:")); } catch { url = null; }
@@ -62,9 +51,6 @@ export default async function handler(req, res) {
     }
   }
 
-  /* The address of that feed, for the plan he has saved. Asking again gives
-     the same address; `stop` writes a new code into the plan, and every copy
-     of the old address stops answering. */
   if (req.method === "POST" && req.query?.t === "feed") {
     const id = req.body?.id;
     if (!isId(id)) return res.status(400).json({ error: "save the plan to your account first" });
@@ -85,19 +71,12 @@ export default async function handler(req, res) {
     }
   }
 
-  /* The two-way calendar account for the plan he has saved: the address,
-     his name and the calendar password, and the profile that sets it all up
-     on an iPhone or a Mac. Asking again gives the same password; `stop`
-     takes the code out of the plan, and every phone and Mac signed in with
-     it is refused from then on. */
   if ((req.method === "POST" && req.query?.t === "dav") || (req.method === "GET" && req.query?.t === "profile")) {
     const id = req.body?.id || req.query?.id;
     if (!isId(id)) return res.status(400).json({ error: "save the plan to your account first" });
     try {
       const [row] = await db(`offshore_report_documents?id=eq.${id}&user_id=eq.${who.sub}&kind=eq.rotation&select=id,data`) || [];
       if (!row) return res.status(404).json({ error: "no such plan" });
-      /* Disconnect: the code taken out of the plan, and nothing in its place
-         until he connects again. */
       if (req.method === "POST" && req.body?.stop) {
         const { dav, ...rest } = row.data || {};
         await db(`offshore_report_documents?id=eq.${id}&user_id=eq.${who.sub}`, {
@@ -128,11 +107,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "GET") {
-      /* Trips and competence evidence live in the same drawer but are not the
-         same paperwork: each page asks for its own kind. */
       const kind = String(req.query?.kind || "trip").slice(0, 20);
-      /* "every" fetches both drawers in one request: the home page shows both,
-         and two requests cost two round trips for one screen. */
       const only = kind === "every" ? "" : `kind=eq.${encodeURIComponent(kind)}&`;
       const rows = await db(
         `offshore_report_documents?user_id=eq.${who.sub}&${only}` +
@@ -156,17 +131,11 @@ export default async function handler(req, res) {
       };
       const id = req.body?.id;
       if (id && !isId(id)) return res.status(400).json({ error: "that is not a document id" });
-      /* A saved rotation keeps its calendar codes whatever the page sends: they
-         are the account's to write, and a page holding an older copy of the plan
-         would otherwise switch the calendar off by saving. */
       const base = req.body?.base;
       if (id && row.kind === "rotation") {
         const [was] = await db(`offshore_report_documents?id=eq.${id}&user_id=eq.${who.sub}&select=data,updated_at`) || [];
         const { feed, dav, ...rest } = doc;
         row.data = { ...rest, ...(was?.data?.feed ? { feed: was.data.feed } : {}), ...(was?.data?.dav ? { dav: was.data.dav } : {}) };
-        /* Changed since the page read it — an event added on the phone — and
-           the page is told so, with the plan as it is now, to put the two
-           together rather than write over it. */
         if (base && was && was.updated_at !== base) return res.status(409).json({ error: "changed elsewhere", document: { id, ...was } });
       }
       const saved = id

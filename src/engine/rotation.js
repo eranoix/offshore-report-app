@@ -1,33 +1,17 @@
-/**
- * Rotation projection. Only the pattern, the anchor day and the turns that moved
- * are stored; the projection is always recomputed so it never goes stale.
- *
- * All arithmetic is on whole UTC day numbers: a local Date crosses DST and gives a
- * 27-day turn once a year, and `new Date("2026-03-14")` is UTC midnight while
- * `new Date("2026-03-14T00:00:00")` is local midnight, a day apart by hemisphere.
- */
 import { holidaysIn } from "./holidays.js";
 
-/** An ISO day as a whole number of days, parsed by slicing and never by Date. */
 export const dayOf = (iso) =>
   Date.UTC(+String(iso).slice(0, 4), +String(iso).slice(5, 7) - 1, +String(iso).slice(8, 10)) / 864e5;
 
-/** A whole UTC day number back to an ISO day. */
 export const isoOf = (day) => new Date(day * 864e5).toISOString().slice(0, 10);
 
-/** What a rotation starts as: the commonest one, from today. */
 export const BLANK_PLAN = {
   v: 1,
   who: "",
-  /* `hotelOut`, `hotelBack` and `travel` are nought until filled in, so a plan without them behaves as before. */
-  /* No rotation until he sets one: a pre-filled 28/28 would count days that are not his.
-     `patternOf` still offers 28/28 as the suggestion the fields start from. */
   pattern: null,
   anchor: new Date().toISOString().slice(0, 10),
   horizon: 8,
   slips: {},
-  /* Days he has told the site about, ISO date to state, only where they differ from the
-     projection: a fact beats the pattern, but only on its own day, so this stays sparse. */
   days: {},
   dates: [],
   holidays: { country: "BR", own: [] },
@@ -36,11 +20,6 @@ export const BLANK_PLAN = {
 const whole = (n, fallback) => (Number.isFinite(+n) && +n > 0 ? Math.round(+n) : fallback);
 const spare = (n) => (Number.isFinite(+n) && +n > 0 ? Math.round(+n) : 0);
 
-/**
- * The five kinds of day, in the order a turn runs through them. Hotel nights are kept
- * apart from ship and home because a tax year turns on them. Each state has a word and
- * a mark as well as a colour, since the page prints with backgrounds off.
- */
 export const STATES = [
   { key: "out", label: "Travelling out", short: "Out", mark: "✈️", away: true },
   { key: "hotel", label: "In a hotel", short: "Hotel", mark: "🏨", away: true },
@@ -49,18 +28,12 @@ export const STATES = [
   { key: "home", label: "At home", short: "Home", mark: "🏠", away: false },
 ];
 export const STATE = Object.fromEntries(STATES.map((s) => [s.key, s]));
-/* A day nothing says anything about (before the rotation, or none set): counted nowhere,
-   drawn blank, never home by default. It is in the map so a lookup finds a word for it. */
 STATE.none = { key: "none", label: "Not planned", short: "", mark: "", away: false };
 
-/** The rotation offered when none is set: the commonest one, as a suggestion
- *  the fields start from — never on the calendar until he says so. */
 export const SUGGESTED = { on: 28, off: 28, hotelOut: 0, hotelBack: 0, travel: 0 };
 
-/** Whether the plan has a rotation — a pattern he set and the day it starts. */
 export const hasRotation = (plan) => Boolean(plan?.pattern && plan?.anchor);
 
-/** The pattern with every optional count filled in, nought where it is absent. */
 export function patternOf(plan = BLANK_PLAN) {
   const p = plan?.pattern || {};
   return {
@@ -72,20 +45,11 @@ export function patternOf(plan = BLANK_PLAN) {
   };
 }
 
-/**
- * Sailing day to sailing day, which is not the sum of the parts: the outbound hotel night
- * and flight come out of the time at home, while the return ones push it along (a 28/28
- * with a night and a flight each way is 58 days, not 60).
- */
 export const cycleOf = (plan = BLANK_PLAN) => {
   const p = patternOf(plan);
   return p.on + p.hotelBack + p.travel + p.off;
 };
 
-/**
- * One turn laid out from its days aboard: the way out is carved out of the days at home
- * before it, the way back pushes them along.
- */
 function turnAt({ hotelOut = 0, hotelBack = 0, travel = 0 }, from, to, homeDays) {
   const lodgedTo = to + hotelBack;
   const flownTo = lodgedTo + travel;
@@ -128,7 +92,6 @@ export function turnsOf(plan = BLANK_PLAN, { count } = {}) {
     out.push({
       n,
       ...turn,
-      /* Against the untouched pattern, not against the turn before it. */
       moved: from - (start + (n - 1) * cycle),
       slipped: Boolean(slip.from || slip.to),
     });
@@ -137,17 +100,11 @@ export function turnsOf(plan = BLANK_PLAN, { count } = {}) {
   return out;
 }
 
-/** The same rotation with every slip ignored — what the contract says. */
 export const cleanTurns = (plan, count) =>
   turnsOf({ ...plan, slips: {} }, { count });
 
-/** The day-of-year part of a date written either way. */
 const dayAndMonth = (on) => (String(on).length > 5 ? String(on).slice(5) : String(on));
 
-/**
- * Everything worth seeing against the turns, between two days: family dates, holidays and
- * certificate expiries, kept apart because only some of them can be fixed from a vessel.
- */
 export function marksOf(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] } = {}) {
   const first = dayOf(fromIso);
   const last = dayOf(toIso);
@@ -162,8 +119,6 @@ export function marksOf(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] }
 
   for (const d of plan?.dates || []) {
     if (!d?.on || !d?.what) continue;
-    /* Days after the first one it runs, nought for a single day. Capped at a year: an end
-       typed into the wrong century is a typo, not four hundred thousand marks. */
     const span = spanOf(d);
     const each = (start, note) => {
       for (let k = 0; k <= span; k += 1) {
@@ -174,19 +129,12 @@ export function marksOf(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] }
     if (d.every === "once" && String(d.on).length > 5) { each(d.on, ""); continue; }
     if (d.every === "repeat") { for (const s of repeatStarts(d, fromIso, toIso)) each(s, ""); continue; }
     const md = dayAndMonth(d.on);
-    /* A birthday whose year is known can say how old, and one whose year is
-       not is never made to invent one. */
     const born = String(d.on).length > 5 ? +String(d.on).slice(0, 4) : null;
-    /* A yearly stretch that starts in December and ends in January belongs
-       to the year it started in, so the year before the window is asked too. */
     for (const y of (span ? [years[0] - 1, ...years] : years).filter((yy) => comesIn(d, yy))) {
-      /* An age is for a birthday, not for a fortnight that comes round. */
       each(`${y}-${md}`, born && !span ? `${y - born}` : "");
     }
   }
 
-  /* Only the holidays he accepted: the country's are offered as suggestions and none
-     shows until he says yes to it. */
   const country = plan?.holidays?.country || "BR";
   const taken = new Set(plan?.holidays?.take || []);
   for (const y of years) {
@@ -206,10 +154,6 @@ export function marksOf(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] }
   return out.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : a.what < b.what ? -1 : 1));
 }
 
-/**
- * Each mark put where it falls. A date on a stretch's first or last day is inside it,
- * once: every mark lands in exactly one place.
- */
 export function landing(turns, marks) {
   const inside = (block, day) => day >= dayOf(block.from) && day <= dayOf(block.to);
   return turns.map((t) => {
@@ -224,7 +168,6 @@ export function landing(turns, marks) {
   });
 }
 
-/** The next time he goes out or comes back, and how far off it is. */
 export function nextChange(turns, todayIso) {
   const today = dayOf(todayIso);
   for (const t of turns) {
@@ -236,7 +179,6 @@ export function nextChange(turns, todayIso) {
   return null;
 }
 
-/** The turns cut into printed sheets. */
 export const sheetsOf = (turns, perSheet) => {
   const each = whole(perSheet, 8);
   const out = [];
@@ -251,10 +193,6 @@ const middle = (list) => {
   return sorted.length % 2 ? sorted[half] : Math.round((sorted[half - 1] + sorted[half]) / 2);
 };
 
-/**
- * A pattern read off the saved trips. Medians, not averages, so one trip cut short does
- * not redefine the rotation; two trips is the minimum (one has no gap after it to measure).
- */
 export function guessPattern(trips = []) {
   const clean = trips
     .filter((t) => t?.start && t?.end && dayOf(t.end) >= dayOf(t.start))
@@ -269,15 +207,9 @@ export function guessPattern(trips = []) {
   return { on, off, anchor: isoOf(dayOf(last.end) + off + 1), from: clean.length };
 }
 
-/** The first day of a month, and how many days it has, in UTC day numbers. */
 export const monthStart = (y, m) => Date.UTC(y, m, 1) / 864e5;
 export const monthLength = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
 
-/**
- * The projection reaching back far enough to cover past days: the anchor is stepped back
- * by whole cycles (never a guessed number of days) with the slips carried along, so turn
- * numbers keep their meaning (the anchor is turn 1, earlier ones nought and below).
- */
 export function turnsAcross(plan = BLANK_PLAN, fromIso, toIso) {
   const hs = hitchesOf(plan);
   const rota = hasRotation(plan);
@@ -286,8 +218,6 @@ export function turnsAcross(plan = BLANK_PLAN, fromIso, toIso) {
   const to = dayOf(toIso);
   const out = [];
 
-  /* His hitches, as they happened. Home after each one runs to the next one;
-     after the last, it is in proportion to the days he was aboard. */
   hs.forEach((h, i) => {
     const a = dayOf(h.from);
     const b = dayOf(h.to);
@@ -298,14 +228,10 @@ export function turnsAcross(plan = BLANK_PLAN, fromIso, toIso) {
       off: home, ownOff: next ? false : Number.isFinite(h.off) });
   });
 
-  /* And the rotation's suggestions after them — from the last hitch when there
-     is one, so a hitch four days long pushes every turn behind it four days
-     and more; from the rotation's first day when there is none. */
   if (rota && plan?.suggest !== false) {
     const cycle = cycleOf(plan);
     const last = out[out.length - 1];
     const start = last ? dayOf(last.home.to) + 1 : dayOf(plan.anchor);
-    /* Capped: a thousand-year window is a bug upstream, not a reason to generate turns. */
     const many = Math.min(2000, Math.max(1, Math.ceil((to - start + 1) / cycle) + 1));
     const base = last
       ? turnsOf({ ...plan, anchor: isoOf(start), slips: {} }, { count: many })
@@ -315,7 +241,6 @@ export function turnsAcross(plan = BLANK_PLAN, fromIso, toIso) {
       const no = dismissed.has(t.aboard.from);
       out.push({
         ...t, n: out.length + 1, suggested: true, dismissed: no,
-        /* A suggestion turned down is days at home, not days nobody knows. */
         ...(no ? { legs: [{ state: "home", from: t.legs[0].from, to: t.home.to, days: dayOf(t.home.to) - dayOf(t.legs[0].from) + 1 }] } : {}),
       });
     }
@@ -324,11 +249,6 @@ export function turnsAcross(plan = BLANK_PLAN, fromIso, toIso) {
   return out.filter((t) => dayOf(t.home.to) >= from - cycleOf(plan) && dayOf(t.legs[0].from) <= to);
 }
 
-/**
- * The hitches he confirmed — a suggestion accepted, a stretch aboard he set,
- * or one moved to where it really was — in order. Each is its days aboard, and
- * `off` when he set the days at home after it himself.
- */
 export function hitchesOf(plan) {
   const ok = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
   return (plan?.hitches || [])
@@ -336,11 +256,6 @@ export function hitchesOf(plan) {
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
 }
 
-/**
- * The days at home after a hitch. In proportion to the days aboard, the way
- * the rotation has them — 32 days on a 28/28 earns 32 off, 21 earns 21, and a
- * 28/14 gives half — unless he set them himself, more or fewer.
- */
 export function offAfter(plan, h) {
   if (Number.isFinite(h?.off) && h.off >= 0) return Math.round(h.off);
   if (!hasRotation(plan)) return 0;
@@ -349,12 +264,6 @@ export function offAfter(plan, h) {
   return Math.max(0, Math.round((days * p.off) / p.on));
 }
 
-/**
- * A stretch aboard set as a hitch — accepting a suggestion, moving one, or
- * saying he was aboard. Any hitch it overlaps is replaced by it: two hitches
- * cannot share a day. The days he had told the calendar one by one inside it
- * go, since the hitch now says them.
- */
 export function withHitch(plan = BLANK_PLAN, fromIso, toIso, id = `h${fromIso}`) {
   let a = fromIso;
   let b = toIso || fromIso;
@@ -366,8 +275,6 @@ export function withHitch(plan = BLANK_PLAN, fromIso, toIso, id = `h${fromIso}`)
   return { ...plan, days, hitches: [...kept, { id, from: a, to: b, ...(Number.isFinite(was?.off) ? { off: was.off } : {}) }] };
 }
 
-/** A hitch changed: its days, or the days at home after it (`off`, or null
- *  to go back to the proportional ones). */
 export function changeHitch(plan = BLANK_PLAN, id, patch) {
   return {
     ...plan,
@@ -381,23 +288,15 @@ export function changeHitch(plan = BLANK_PLAN, id, patch) {
   };
 }
 
-/** A hitch taken off. The rotation's suggestions take its place again. */
 export const dropHitch = (plan = BLANK_PLAN, id) =>
   ({ ...plan, hitches: (plan.hitches || []).filter((h) => h.id !== id) });
 
-/** One suggestion turned down, by its first day aboard. */
 export const dismissTurn = (plan = BLANK_PLAN, fromIso) =>
   ({ ...plan, dismissed: [...new Set([...(plan.dismissed || []), fromIso])] });
 
-/** Every suggestion taken off the calendar, or put back. His hitches stay. */
 export const withSuggestions = (plan = BLANK_PLAN, on) =>
   ({ ...plan, suggest: Boolean(on), ...(on ? { dismissed: [] } : {}) });
 
-/**
- * The turns to show from today: the one he is in or last came back from, and
- * the ones after it — his hitches and the suggestions — as many as the plan's
- * horizon asks for.
- */
 export function turnsFrom(plan = BLANK_PLAN, todayIso, count) {
   const many = whole(count ?? plan?.horizon, 8);
   const first = hitchesOf(plan)[0]?.from || plan?.anchor;
@@ -409,10 +308,6 @@ export function turnsFrom(plan = BLANK_PLAN, todayIso, count) {
   return all.slice(at, at + many);
 }
 
-/**
- * The state of each day of a window, one entry per day. An unclaimed day is `none`, not
- * home. Everything below counts off this one array, so nothing can disagree about a day.
- */
 export function statesAcross(plan = BLANK_PLAN, fromIso, toIso) {
   const from = dayOf(fromIso);
   const to = dayOf(toIso);
@@ -424,8 +319,6 @@ export function statesAcross(plan = BLANK_PLAN, fromIso, toIso) {
     const last = Math.min(to, dayOf(leg.to));
     for (let d = first; d <= last; d += 1) out[d - from] = leg.state;
   }
-  /* Told days go last and win. They are applied here, not in the calendar, so the count,
-     the runs, the absences and the tax claim all read the same array. */
   for (const [iso, state] of Object.entries(plan?.days || {})) {
     if (!STATE[state] || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) continue;
     const d = dayOf(iso);
@@ -434,12 +327,6 @@ export function statesAcross(plan = BLANK_PLAN, fromIso, toIso) {
   return out;
 }
 
-/**
- * Whether a yearly date comes round in a given year. It can have been taken
- * out of one year ("only this one" deleted), stopped from a year on ("this
- * and following"), or begun in a year (the second half of a series that was
- * split). A date with none of those comes round every year, as it always did.
- */
 export function comesIn(d, y) {
   if ((d.skip || []).includes(y)) return false;
   if (d.first && y < d.first) return false;
@@ -447,7 +334,6 @@ export function comesIn(d, y) {
   return true;
 }
 
-/** How many days after its first a date runs — nought for a single day. */
 export function spanOf(d) {
   if (!d?.until || String(d.on).length <= 5) return 0;
   const n = dayOf(d.until) - dayOf(d.on);
@@ -456,20 +342,12 @@ export function spanOf(d) {
 
 const weekdayOf = (day) => new Date(day * 864e5).getUTCDay();
 
-/** A repeat's rule moved by some days: its last day with it, and the weekdays
- *  of a weekly one — every Monday moved a day on is every Tuesday. */
 const shiftRepeat = (r, shift) => (!r ? r : {
   ...r,
   ...(r.until ? { until: isoOf(dayOf(r.until) + shift) } : {}),
   ...(r.freq === "week" && (r.days || []).length ? { days: r.days.map((w) => (((w + shift) % 7) + 7) % 7) } : {}),
 });
 
-/**
- * The days a repeating event starts on, between two dates. `d.repeat` is the rule: `freq`
- * (day, week, month or year), every `n`, weekdays `days` for a weekly one (Sunday nought),
- * and a stop by `until` or `count`; `d.ex` are single days taken out. An occurrence already
- * running into `fromIso` is included, and a month without the day (31 February) is skipped.
- */
 export function repeatStarts(d, fromIso, toIso) {
   const r = d?.repeat;
   if (!r || !d.on || String(d.on).length <= 5) return [];
@@ -483,9 +361,6 @@ export function repeatStarts(d, fromIso, toIso) {
   const start = dayOf(d.on);
   const got = [];
   let n = 0;
-  /* With no count to keep, the walk starts near the window rather than at the
-     first occurrence: a daily event begun ten years ago is not ten years of
-     steps to find this month. */
   const period = r.freq === "day" ? step : r.freq === "week" ? 7 * step : 0;
   let k = count === Infinity && period ? Math.max(0, Math.floor((lo - span - start) / period) - 1) : 0;
   for (let guard = 0; n < count && guard < 5000; guard += 1, k += 1) {
@@ -513,7 +388,6 @@ export function repeatStarts(d, fromIso, toIso) {
   return got;
 }
 
-/** How a repeat reads, in words: "every week on Mon and Thu", "every 2 days". */
 export function repeatWords(d) {
   const r = d?.repeat;
   if (!r) return "";
@@ -525,12 +399,6 @@ export function repeatWords(d) {
   return `every ${n === 1 ? unit : `${n} ${unit}s`}${on}${stop}`;
 }
 
-/**
- * A stretch of days set, or put back — the way a calendar event is given a
- * start and an end. Each day is still decided on its own against the
- * pattern, so a stretch that runs across a crew change stores only the days
- * that actually differ, and putting it back leaves nothing behind.
- */
 export function withDays(plan = BLANK_PLAN, fromIso, toIso, state) {
   let a = dayOf(fromIso);
   let b = dayOf(toIso || fromIso);
@@ -542,55 +410,35 @@ export function withDays(plan = BLANK_PLAN, fromIso, toIso, state) {
   return out;
 }
 
-/** What he said about one day, or nothing if he has never said. */
 export const saidOn = (plan, iso) => {
   const state = (plan?.days || {})[iso];
   return STATE[state] ? state : null;
 };
 
-/**
- * One day set, or put back. Setting a day to what the plan already says removes the entry,
- * so stored days never stop following the pattern when it changes.
- */
 export function withDay(plan = BLANK_PLAN, iso, state) {
   const days = { ...(plan?.days || {}) };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return plan;
   const projected = statesAcross({ ...plan, days: {} }, iso, iso)[0];
-  /* A state that is not one of the five never goes in: `statesAcross` would ignore it,
-     leaving a fact on the plan that nothing reads or shows. */
   if (state && !STATE[state]) return plan;
   if (!state || state === projected) delete days[iso];
   else days[iso] = state;
   return { ...plan, days };
 }
 
-/**
- * The days of a window, counted by state. `abroad` decides a tax year, and whether days in
- * the air count is an accountant's call, so `flights` is that switch.
- */
 export function tally(plan = BLANK_PLAN, fromIso, toIso, { flights = true } = {}) {
   const each = statesAcross(plan, fromIso, toIso);
   const n = { out: 0, hotel: 0, aboard: 0, back: 0, home: 0, none: 0 };
   for (const key of each) n[key] += 1;
   const travelling = n.out + n.back;
   const abroad = n.aboard + n.hotel + (flights ? travelling : 0);
-  /* The days nothing is known about are in neither column. */
   return { ...n, days: each.length, planned: each.length - n.none, travelling, abroad, inCountry: each.length - n.none - abroad };
 }
 
-/** One month, and one year, counted the same way. */
 export const monthTally = (plan, y, m, how) =>
   tally(plan, isoOf(monthStart(y, m)), isoOf(monthStart(y, m) + monthLength(y, m) - 1), how);
 export const yearTally = (plan, y, how) =>
   tally(plan, isoOf(Date.UTC(y, 0, 1) / 864e5), isoOf(Date.UTC(y, 11, 31) / 864e5), how);
 
-/**
- * The window cut into stretches: one entry per unbroken run of a single state.
- *
- * A month opened on the 3rd starts in the middle of a trip, and the stretch is
- * reported as the part that falls in the month — `whole` says whether the run
- * carried on either side of it, so nothing claims a 9-day trip that was 28.
- */
 export function runsIn(plan = BLANK_PLAN, fromIso, toIso) {
   const each = statesAcross(plan, fromIso, toIso);
   const from = dayOf(fromIso);
@@ -608,11 +456,6 @@ export function runsIn(plan = BLANK_PLAN, fromIso, toIso) {
   })).filter((r) => r.state !== "none");
 }
 
-/**
- * Every unbroken stretch out of the country, which is what a tax claim is made
- * of — not the states, the absence. Landing and flying out on the same day
- * never splits one absence into two, because the day in the air is inside it.
- */
 export function absencesIn(plan = BLANK_PLAN, fromIso, toIso) {
   const each = statesAcross(plan, fromIso, toIso);
   const from = dayOf(fromIso);
@@ -626,11 +469,6 @@ export function absencesIn(plan = BLANK_PLAN, fromIso, toIso) {
   return out;
 }
 
-/**
- * The things on a stretch of calendar, each as one item with a start and an end (drawn as
- * one bar): his dates, stretches of told days, holidays and certificate expiries. Each keeps
- * its true start and end even when the window cuts it.
- */
 export function eventsIn(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] } = {}) {
   const a = dayOf(fromIso);
   const b = dayOf(toIso);
@@ -656,9 +494,6 @@ export function eventsIn(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] 
     }
   }
 
-  /* Told days, run together: consecutive days told the same state are one
-     stretch. A told day that agrees with the pattern is never stored, so
-     every run here is a real departure from it. */
   const told = Object.entries(plan?.days || {})
     .filter(([iso, st]) => STATE[st] && /^\d{4}-\d{2}-\d{2}$/.test(iso))
     .sort(([x], [y]) => (x < y ? -1 : 1));
@@ -674,9 +509,6 @@ export function eventsIn(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] 
   }
   close();
 
-  /* The rotation, as events: his hitches solid, the suggestions dashed. It is
-     drawn this way and not as a mark on every day, so a day has one thing on
-     it for the rotation and not two. */
   for (const t of turnsAcross(plan, fromIso, toIso)) {
     if (t.dismissed || !touches(t.aboard.from, t.aboard.to)) continue;
     if (t.confirmed) {
@@ -694,11 +526,6 @@ export function eventsIn(plan = BLANK_PLAN, fromIso, toIso, { certificates = [] 
   return out;
 }
 
-/**
- * Where each item's bar goes on a month drawn as weeks: one piece per week crossed, its
- * columns, and a lane so no two bars overlap. `head`/`tail` say whether the piece holds the
- * item's real first/last day. Longer items take the upper lanes.
- */
 export function barsOf(items, firstIso, weeks) {
   const start = dayOf(firstIso);
   const pieces = [];
@@ -722,11 +549,6 @@ export function barsOf(items, firstIso, weeks) {
   return pieces;
 }
 
-/**
- * An event given a new start and end (what dragging its bar does). His own date keeps what
- * it is and takes the new days; a told stretch is lifted and put down in the same state;
- * holidays and certificates are not his to move and come back untouched.
- */
 export function moveEvent(plan = BLANK_PLAN, item, fromIso, toIso) {
   if (!item || !fromIso) return plan;
   let a = fromIso;
@@ -736,8 +558,6 @@ export function moveEvent(plan = BLANK_PLAN, item, fromIso, toIso) {
     const lifted = withDays(plan, item.from, item.to, null);
     return withDays(lifted, a, b, item.state);
   }
-  /* A hitch moved is where it really was; a suggestion moved is accepted
-     where he put it — either way, the turns after it follow. */
   if (item.sort === "hitch") return changeHitch(plan, item.id, { from: a, to: b });
   if (item.sort === "suggested") return withHitch(plan, a, b);
   if (item.sort !== "family" || !item.id) return plan;
@@ -750,16 +570,12 @@ export function moveEvent(plan = BLANK_PLAN, item, fromIso, toIso) {
         const { until, ...rest } = d;
         return span > 0 ? { ...rest, on: a, until: b } : { ...rest, on: a };
       }
-      /* A repeat moves as a whole: the series starts as many days later as
-         the occurrence was dragged, and so does the day it stops. */
       if (d.every === "repeat") {
         const shift = dayOf(a) - dayOf(item.from);
         const on = isoOf(dayOf(d.on) + shift);
         const { until, ...rest } = d;
         return { ...rest, on, repeat: shiftRepeat(d.repeat, shift), ...(span > 0 ? { until: isoOf(dayOf(on) + span) } : {}) };
       }
-      /* Every year: the day of the year moves, the year it was first written
-         with stays. A date kept as month and day alone has no year to keep. */
       const year = String(d.on).length > 5 ? String(d.on).slice(0, 4) : "";
       if (!year) return { ...d, on: a.slice(5) };
       const on = `${year}-${a.slice(5)}`;
@@ -769,15 +585,8 @@ export function moveEvent(plan = BLANK_PLAN, item, fromIso, toIso) {
   };
 }
 
-/** How long a deleted date is kept before it is gone for good. */
 export const TRASH_DAYS = 30;
 
-/**
- * A date of his, deleted — into the bin, not out of existence. It keeps
- * everything it was and the day it was deleted, so it can be put back exactly
- * as it was for thirty days, the way a calendar's trash works. Deleting a date
- * that is not there changes nothing.
- */
 export function dropDate(plan = BLANK_PLAN, id, todayIso = new Date().toISOString().slice(0, 10)) {
   const gone = (plan.dates || []).find((d) => d.id === id);
   if (!gone) return plan;
@@ -788,7 +597,6 @@ export function dropDate(plan = BLANK_PLAN, id, todayIso = new Date().toISOStrin
   };
 }
 
-/** A deleted date put back, as it was, without the note of when it went. */
 export function restoreDate(plan = BLANK_PLAN, id) {
   const back = (plan.trash || []).find((d) => d.id === id);
   if (!back) return plan;
@@ -800,22 +608,13 @@ export function restoreDate(plan = BLANK_PLAN, id) {
   };
 }
 
-/**
- * The bin with anything older than thirty days taken out. Run when a plan is
- * read, so the bin is never carried about for ever inside every save.
- */
 export function pruneTrash(plan = BLANK_PLAN, todayIso = new Date().toISOString().slice(0, 10)) {
   const keep = (plan.trash || []).filter((d) => dayOf(todayIso) - dayOf(d.deleted || todayIso) <= TRASH_DAYS);
   return keep.length === (plan.trash || []).length ? plan : { ...plan, trash: keep };
 }
 
-/**
- * A date copied or split off as a new one, without the phone's calendar id and raw event:
- * two events on a phone with one id are one event, and the second would overwrite the first.
- */
 const freshOf = ({ uid, src, sig, ...d }) => d;
 
-/** A date copied, as a new one of its own, starting the day after it ends. */
 export function duplicateDate(plan = BLANK_PLAN, id, newId) {
   const d = (plan.dates || []).find((x) => x.id === id);
   if (!d) return plan;
@@ -838,9 +637,6 @@ const monthOf = (w) => {
   return i < 0 ? null : i + 1;
 };
 
-/** The categories an event can be filed under, each with its own colour.
- *  `words` are the tags that file an event there. */
-/* In alphabetical order, as every list on the site is. */
 export const CATEGORIES = [
   { key: "course", label: "Course", words: ["course", "training"], color: "#FBBF24" },
   { key: "family", label: "Family", words: ["family"], color: "#A78BFA" },
@@ -851,11 +647,6 @@ export const CATEGORIES = [
 ];
 export const CATEGORY = Object.fromEntries(CATEGORIES.map((c) => [c.key, c]));
 
-/**
- * An event typed as a sentence ("course 28/9 for 5 days", "dentist tomorrow") turned into
- * its name, start, end, recurrence and category. What it does not recognise stays in the
- * name rather than being guessed; with no date, the page uses the day that was clicked.
- */
 export function parseEvent(text, todayIso = new Date().toISOString().slice(0, 10)) {
   let rest = ` ${String(text || "").trim()} `;
   const out = { what: "", on: null, until: null, every: "once", cat: null };
@@ -864,50 +655,40 @@ export function parseEvent(text, todayIso = new Date().toISOString().slice(0, 10
   const take = (re) => { const m = rest.match(re); if (m) rest = rest.replace(m[0], " "); return m; };
   const nextOf = (mo, d, y) => {
     if (y) return `${y < 100 ? 2000 + y : y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    /* The year that puts it nearest today, either side: a planner is told what just
-       happened as often as what is coming. */
     const md = `${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     return [ty - 1, ty, ty + 1].map((y) => `${y}-${md}`)
       .sort((a, b) => Math.abs(dayOf(a) - today) - Math.abs(dayOf(b) - today))[0];
   };
   const valid = (iso) => iso && Number.isFinite(dayOf(iso)) && isoOf(dayOf(iso)) === iso;
 
-  /* #category */
   const tag = take(/\s#([\p{L}]+)/u);
   if (tag) out.cat = CATEGORIES.find((c) => c.words.includes(tag[1].toLowerCase()) || c.key === tag[1].toLowerCase())?.key || null;
-  /* every year */
   if (take(/\s(every year|yearly|annually)(?=\s)/i)) out.every = "year";
 
   const MON = "([A-Za-z]{3,10}\\.?)";
   let m;
-  /* 8 to 13 sep · 8-13 sep */
   if ((m = take(new RegExp(`\\s(\\d{1,2})\\s*(?:-|–|to)\\s*(\\d{1,2})\\s${MON}(?:\\s(\\d{4}))?(?=\\s)`, "i"))) && monthOf(m[3])) {
     out.on = nextOf(monthOf(m[3]), +m[1], m[4] && +m[4]);
     out.until = `${out.on.slice(0, 8)}${String(+m[2]).padStart(2, "0")}`;
-  /* 8/9 to 13/9 · 28/9 - 2/10 */
   } else if ((m = take(/\s(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*(?:-|–|to)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s)/i))) {
     out.on = nextOf(+m[2], +m[1], m[3] && +m[3]);
     out.until = nextOf(+m[5], +m[4], m[6] ? +m[6] : +out.on.slice(0, 4));
     if (dayOf(out.until) < dayOf(out.on)) out.until = `${+out.until.slice(0, 4) + 1}${out.until.slice(4)}`;
-  /* 8-13/9 */
   } else if ((m = take(/\s(\d{1,2})\s*[-–]\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s)/))) {
     out.on = nextOf(+m[3], +m[1], m[4] && +m[4]);
     out.until = `${out.on.slice(0, 8)}${String(+m[2]).padStart(2, "0")}`;
-  /* 8/9 · 08/09/2026 · 2026-09-08 */
   } else if ((m = take(/\s(\d{4})-(\d{2})-(\d{2})(?=\s)/))) {
     out.on = `${m[1]}-${m[2]}-${m[3]}`;
   } else if ((m = take(/\s(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=\s)/))) {
     out.on = nextOf(+m[2], +m[1], m[3] && +m[3]);
-  /* 8 sep · sep 8 */
   } else if ((m = take(new RegExp(`\\s(\\d{1,2})\\s${MON}(?:\\s(\\d{4}))?(?=\\s)`, "i"))) && monthOf(m[2])) {
     out.on = nextOf(monthOf(m[2]), +m[1], m[3] && +m[3]);
   } else if ((m = take(new RegExp(`\\s${MON}\\s(\\d{1,2})(?:,?\\s(\\d{4}))?(?=\\s)`, "i"))) && monthOf(m[1])) {
     out.on = nextOf(monthOf(m[1]), +m[2], m[3] && +m[3]);
   } else if (take(/\s(today)(?=\s)/i)) out.on = todayIso;
   else if (take(/\s(tomorrow)(?=\s)/i)) out.on = isoOf(today + 1);
-  if (m && !out.on) rest = ` ${rest} ${m[0]} `; /* a "month" that was not one goes back into the name */
+  if (m && !out.on) rest = ` ${rest} ${m[0]} `;
 
-  /* for 5 days */
   const len = take(/\s(?:for)\s(\d{1,3})\s(days?)(?=\s)/i);
   if (len && out.on) out.until = isoOf(dayOf(out.on) + Math.max(1, +len[1]) - 1);
 
@@ -918,11 +699,6 @@ export function parseEvent(text, todayIso = new Date().toISOString().slice(0, 10
   return out;
 }
 
-/**
- * A change to one occurrence of a recurring date, with a calendar's scopes: only this one,
- * this and following, or all. `change` is `{ kind: "delete" }`, `{ kind: "move", from, to }`
- * or `{ kind: "edit", patch }`. A date that does not recur is simply changed.
- */
 export function changeOccurrence(plan = BLANK_PLAN, item, scope, change, newId = `d${Date.now().toString(36)}`, todayIso) {
   const d = (plan.dates || []).find((x) => x.id === item?.id);
   if (!d) return plan;
@@ -936,9 +712,6 @@ export function changeOccurrence(plan = BLANK_PLAN, item, scope, change, newId =
   };
   const replaceDate = (fn) => ({ ...plan, dates: (plan.dates || []).map((x) => (x.id === d.id ? fn(x) : x)) });
 
-  /* A repeat's occurrence is a day, not a year: only this one takes the day
-     out of the rule; this and following stops the rule the day before and
-     starts a new one there. */
   if (repeats && scope !== "all") {
     const { skip, first, last, until, uid, src, sig, ...base } = d;
     const span = spanOf(d);
@@ -981,7 +754,6 @@ export function changeOccurrence(plan = BLANK_PLAN, item, scope, change, newId =
     return { ...skipped, dates: [...skipped.dates, change.kind === "edit" ? { ...single, ...change.patch } : single] };
   }
 
-  /* this and following */
   const stopped = (d.first && d.first >= y) || false;
   let next = stopped
     ? { ...plan, dates: (plan.dates || []).filter((x) => x.id !== d.id) }
@@ -1000,7 +772,6 @@ export function changeOccurrence(plan = BLANK_PLAN, item, scope, change, newId =
   return next;
 }
 
-/** A note written on a day, or taken off it when the text is empty. */
 export function withNote(plan = BLANK_PLAN, iso, text) {
   const notes = { ...(plan.notes || {}) };
   const t = String(text || "").trim();
@@ -1008,7 +779,6 @@ export function withNote(plan = BLANK_PLAN, iso, text) {
   return { ...plan, notes };
 }
 
-/** The ways the days aboard can be worked. */
 export const SHIFTS = [
   { key: "none", label: "Not shown" },
   { key: "day", label: "Days" },
@@ -1016,12 +786,6 @@ export const SHIFTS = [
   { key: "swing", label: "Days, then nights (swing)" },
 ];
 
-/**
- * Day or night for each day of a window — null for a day not aboard, or
- * when the rotation does not say. A swing hitch works the first half of its
- * days aboard on days and the second half on nights, the way a 28-day hitch
- * swings at fourteen; an odd hitch gives the extra day to the days.
- */
 export function shiftsAcross(plan = BLANK_PLAN, fromIso, toIso) {
   const mode = plan?.pattern?.shift || "none";
   const from = dayOf(fromIso);
@@ -1041,14 +805,8 @@ export function shiftsAcross(plan = BLANK_PLAN, fromIso, toIso) {
   return out;
 }
 
-/** Someone else's rotation read as a plan of its own. */
 export const planOf = (other) => ({ ...BLANK_PLAN, ...other, dates: [], trash: [], notes: {} });
 
-/**
- * The first day from `fromIso` on which both are at home, within two years —
- * the question a crewmate's or a partner's rotation is kept for. Null when
- * there is none in that time.
- */
 export function bothHome(plan, other, fromIso, days = 730) {
   const toIso = isoOf(dayOf(fromIso) + days - 1);
   const mine = statesAcross(plan, fromIso, toIso);
@@ -1060,11 +818,6 @@ export function bothHome(plan, other, fromIso, days = 730) {
   return { from: isoOf(dayOf(fromIso) + i), to: isoOf(dayOf(fromIso) + j), days: j - i + 1 };
 }
 
-/**
- * What is coming, as a list — the agenda. His events, the stretches he told,
- * holidays and certificates, and the crew changes themselves: the day he
- * leaves home and the day he is back. In order, starting from today.
- */
 export function agendaOf(plan = BLANK_PLAN, fromIso, days = 180, { certificates = [] } = {}) {
   const toIso = isoOf(dayOf(fromIso) + days - 1);
   const items = eventsIn(plan, fromIso, toIso, { certificates })
@@ -1082,7 +835,6 @@ export function agendaOf(plan = BLANK_PLAN, fromIso, days = 180, { certificates 
   return items.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : (a.sort === "change" ? -1 : 1)));
 }
 
-/** Several years, each counted month by month — the long view. */
 export function yearsOf(plan = BLANK_PLAN, firstYear, n = 5, how) {
   return Array.from({ length: n }, (unused, k) => {
     const y = firstYear + k;
@@ -1092,11 +844,6 @@ export function yearsOf(plan = BLANK_PLAN, firstYear, n = 5, how) {
 
 export const BLANK_PAY = { mode: "day", currency: "£", dayRate: 0, travelRate: 0, hotelRate: 0, monthly: 0, soldRate: 0 };
 
-/**
- * What a stretch of days paid, or will pay: by the day aboard (travel and hotel days at
- * their own rates) or a monthly salary plus days sold. A sold day (buyback) is found, not
- * typed: a day the rotation had at home that he told the site he spent aboard.
- */
 export function payOf(plan = BLANK_PLAN, fromIso, toIso, { flights = true } = {}) {
   const p = { ...BLANK_PAY, ...(plan?.pay || {}) };
   const states = statesAcross(plan, fromIso, toIso);
@@ -1110,7 +857,6 @@ export function payOf(plan = BLANK_PLAN, fromIso, toIso, { flights = true } = {}
   if (p.mode === "salary") {
     const from = dayOf(fromIso);
     const to = dayOf(toIso);
-    /* The salary pro rata by the days of each month the window covers. */
     let months = 0;
     for (let d = from; d <= to; d += 1) {
       const iso = isoOf(d);
@@ -1129,12 +875,6 @@ export function payOf(plan = BLANK_PLAN, fromIso, toIso, { flights = true } = {}
   return { mode: p.mode, currency: p.currency || "£", total, lines, sold, counted: n, set: p.mode === "salary" ? +p.monthly > 0 : +p.dayRate > 0 };
 }
 
-/**
- * The tickets, soonest to run out first, each with the days it has left and —
- * the thing a calendar can say that a list cannot — whether it runs out while
- * he is aboard, when it cannot be renewed, and so the last day at home before
- * then to get it done.
- */
 export function ticketsAgainst(plan = BLANK_PLAN, certificates = [], todayIso) {
   const today = dayOf(todayIso);
   return certificates
@@ -1144,7 +884,6 @@ export function ticketsAgainst(plan = BLANK_PLAN, certificates = [], todayIso) {
       const st = statesAcross(plan, c.expires, c.expires)[0];
       let renewBy = null;
       if (st !== "home") {
-        /* Walk back to the last day at home before it goes. */
         const back = statesAcross(plan, isoOf(dayOf(c.expires) - 120), c.expires);
         for (let i = back.length - 1; i >= 0; i -= 1) if (back[i] === "home") { renewBy = isoOf(dayOf(c.expires) - (back.length - 1 - i)); break; }
       }
@@ -1153,27 +892,18 @@ export function ticketsAgainst(plan = BLANK_PLAN, certificates = [], todayIso) {
     .sort((a, b) => a.left - b.left);
 }
 
-/**
- * The holidays offered as a suggestion for a year: every one of the country's,
- * each saying whether he has already taken it. Nothing here goes on the
- * calendar — that is his choice, made with `takeHolidays`.
- */
 export function holidaySuggestions(plan = BLANK_PLAN, y) {
   const country = plan?.holidays?.country || "BR";
   const taken = new Set(plan?.holidays?.take || []);
   return holidaysIn(country, y).map((h) => ({ ...h, taken: taken.has(h.what) }));
 }
 
-/** The holidays he said yes to, by name — so they come round every year —
- *  and a note that he was asked, so the suggestion is not offered again. */
 export function takeHolidays(plan = BLANK_PLAN, names) {
   return { ...plan, holidays: { ...(plan.holidays || {}), take: [...new Set(names)], asked: true } };
 }
 
-/** Whether there is a suggestion still waiting for an answer. */
 export const holidaysPending = (plan) => !plan?.holidays?.asked;
 
-/** What a plan carries that can be cleared, and how many of each. */
 export function clearable(plan = BLANK_PLAN) {
   return {
     events: (plan.dates || []).length,
@@ -1187,10 +917,6 @@ export function clearable(plan = BLANK_PLAN) {
   };
 }
 
-/**
- * The calendar cleared of what was chosen. Events go to the bin, restorable for thirty
- * days; everything else is emptied, and clearing the holidays offers the suggestion again.
- */
 export function clearPlan(plan = BLANK_PLAN, what = {}, todayIso = new Date().toISOString().slice(0, 10)) {
   let out = { ...plan };
   if (what.events && (plan.dates || []).length) {
@@ -1203,27 +929,17 @@ export function clearPlan(plan = BLANK_PLAN, what = {}, todayIso = new Date().to
   if (what.linked) out = { ...out, linked: [] };
   if (what.others) out = { ...out, others: [] };
   if (what.hitches) out = { ...out, hitches: [] };
-  /* No rotation at all, not a fresh one: the calendar is blank until he
-     sets one. */
   if (what.rotation) {
     out = { ...out, pattern: null, anchor: todayIso, horizon: BLANK_PLAN.horizon, slips: {}, dismissed: [], suggest: true };
   }
   return out;
 }
 
-/* Two values the same, whatever order their keys are in: the database gives
-   an object back with its keys sorted its own way, and that is not a change. */
 const canon = (v) => (Array.isArray(v) ? v.map(canon)
   : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => [k, canon(v[k])]))
   : v);
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 
-/**
- * Three-way merge of the page's plan (`mine`) and the account's (`theirs`) against `base`,
- * the plan as the page last read or saved it. Events merge one by one like a calendar sync
- * (changed on both sides takes this page's); the bins are joined; everything else is the
- * page's, except the calendar codes, which only the account writes.
- */
 export function mergePlans(base, mine, theirs) {
   if (!theirs) return mine;
   if (!mine) return theirs;
@@ -1245,7 +961,6 @@ export function mergePlans(base, mine, theirs) {
     .filter((d) => !kept.has(d.id))
     .sort((x, y) => (x.deleted < y.deleted ? 1 : x.deleted > y.deleted ? -1 : 0));
   const out = { ...mine, dates, trash };
-  /* A code the account no longer has was switched off there, and stays off. */
   for (const k of ["feed", "dav"]) {
     if (theirs[k] !== undefined) out[k] = theirs[k];
     else delete out[k];
@@ -1253,5 +968,4 @@ export function mergePlans(base, mine, theirs) {
   return out;
 }
 
-/** Whether two plans say the same thing, whatever order their keys are in. */
 export const samePlan = (a, b) => same(a, b);

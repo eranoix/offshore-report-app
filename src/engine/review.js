@@ -1,9 +1,3 @@
-/**
- * Mechanical checks on a document of evidence: every area answered, in the form's register, with no
- * heading, no addressing anyone and no name nobody supplied.
- */
-
-/* Words too common in a competence framework to prove anything. */
 const STOP = new Set([
   "the", "and", "of", "to", "a", "in", "with", "for", "on", "that", "is", "are", "as", "by", "or",
   "at", "from", "all", "any", "their", "this", "it", "be", "an", "his", "her", "they", "them",
@@ -16,7 +10,6 @@ const STOP = new Set([
 const words = (t) =>
   [...new Set(String(t).toLowerCase().match(/[a-z][a-z0-9'-]{3,}/g) || [])].filter((w) => !STOP.has(w));
 
-/** Is this topic actually answered? Paraphrase is fine; silence is not. */
 function answered(text, topic) {
   const keys = words(topic);
   if (!keys.length) return true;
@@ -26,18 +19,10 @@ function answered(text, topic) {
 }
 
 const ADDRESSED = /\b(please (supply|provide|confirm|tell)|i cannot|i can't|i am unable|as an ai|let me know|if you (can )?provide|no scores were provided|i have not (scored|described))\b/i;
-/**
- * A statement is one person's account of work they saw: it never mentions other copies, other witnesses,
- * what is covered elsewhere, or what the document is or is not for.
- */
 const ABOUT_ITSELF =
   /\b(other (witness(es)?|assessors?|copies|documents?|forms?|testimon(y|ies)|reports?)|another (testimony|witness|copy|document|form|report)|this (document|form|testimony|statement|report) (does not|doesn't|will not|won't|is not|isn't)|(are|is) (not )?(addressed|covered|dealt with) (here|elsewhere|in (this|another))|covered (elsewhere|by (another|other))|outside the scope of this|remaining (areas|criteria))\b/i;
 const FENCED = /```|^\s*[-*•]\s+/m;
 
-/**
- * What is wrong with this document, in words that can be handed straight back
- * to the writing. An empty list means it passed.
- */
 export function faults(text, { areas = [], tasks = [], candidate = "", min = 400, voice = "" } = {}) {
   const body = String(text || "").trim();
   const out = [];
@@ -51,8 +36,6 @@ export function faults(text, { areas = [], tasks = [], candidate = "", min = 400
   if (ADDRESSED.test(body))
     out.push("It speaks to whoever asked, or says what it cannot do. Write the document with what was supplied instead.");
 
-  /* Most of these ships have a control room, not a van, so a bare "control van" is flagged. Text in
-     asterisks is the scheme's own quoted phrase and is not checked. */
   if (/\bcontrol van\b(?!\s*\/)/i.test(body.replace(/\*\*[^*]+\*\*/g, " ")))
     out.push('Write "control van/room", not "control van": most of these ships have a control room.');
 
@@ -69,8 +52,6 @@ export function faults(text, { areas = [], tasks = [], candidate = "", min = 400
   if (candidate.trim() && !body.toLowerCase().includes(candidate.trim().toLowerCase().split(/\s+/)[0].toLowerCase()))
     out.push(`The candidate (${candidate}) is never named. Name them as supplied, exactly.`);
 
-  /* A candidate writing about himself in the third person is not the
-     candidate's statement: the form asks for his own words. */
   if (voice === "first") {
     const mine = (body.match(/\b(I|my|me|myself)\b/g) || []).length;
     const his = (body.match(/\b(he|his|him|himself|she|her)\b/gi) || []).length;
@@ -96,7 +77,6 @@ export function faults(text, { areas = [], tasks = [], candidate = "", min = 400
 }
 
 
-/* Stock phrases and shapes that give a generated text away. */
 const STOCK = [
   "demonstrates a commitment to", "demonstrated a commitment to", "in a timely manner",
   "it is worth noting", "it should be noted", "furthermore", "moreover", "additionally,",
@@ -109,8 +89,6 @@ const STOCK = [
 
 const sentences = (t) => String(t).split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 1);
 
-/* A trip feedback is about how the man worked, not what was worked on: these words can only name a job.
-   Words the form legitimately uses ("tool", "rigging", "isolation", "survey", "tooling", "pilots") stay off it. */
 const JOB_WORDS = [
   "manipulator", "torque tool", "umbilical", "tether", "TMS", "LARS", "servo valve",
   "solenoid", "fibre optic", "fiber optic", "megger", "OTDR", "sandbag", "hot stab",
@@ -119,7 +97,6 @@ const JOB_WORDS = [
   "toolsled", "backpack", "A-frame", "snubber",
 ];
 
-/** The words in a text that can only be naming a job, not a man. */
 export function jobWords(text) {
   const body = String(text || "");
   const found = JOB_WORDS.filter((w) =>
@@ -128,7 +105,6 @@ export function jobWords(text) {
   return [...new Set(found)];
 }
 
-/** What still reads as machine-written, in words that can be handed back. */
 export function tells(text) {
   const body = String(text || "");
   const low = body.toLowerCase();
@@ -144,7 +120,6 @@ export function tells(text) {
       `${long.length} sentence${long.length === 1 ? "" : "s"} run too long. Break them: “${long[0].trim().slice(0, 90)}…”`,
     );
 
-  /* Three sentences in a row opening the same way is the rhythm of a machine. */
   const openings = sentences(body).map((s) => s.trim().split(/\s+/).slice(0, 2).join(" ").toLowerCase());
   for (let i = 2; i < openings.length; i += 1)
     if (openings[i] && openings[i] === openings[i - 1] && openings[i] === openings[i - 2]) {

@@ -11,20 +11,10 @@ import { available, listDocuments, loadDocument, savePlan } from "../engine/clou
 import { readMine, writeMine } from "../engine/vault";
 import { inOrder } from "../engine/order";
 
-/**
- * The rotation, on one screen; the arithmetic is in `src/engine/rotation.js`.
- * Hotel nights are a state of their own because a tax year is decided on them.
- * With nothing saved it projects the usual 28 and 28 from today, never a blank form.
- */
 const KEY = "rotation:plan";
 const CERTS = "rotation:certs";
 const LINE = 183;
 
-/**
- * The Seafarers' Earnings Deduction module, via `import.meta.glob` rather than a
- * plain import so this page still builds without it (the quadrant then says so).
- * Fetched only for a reader on a UK salary who asks for it.
- */
 const SEATAX = import.meta.glob("../engine/seatax.js");
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -32,8 +22,6 @@ const MONTHS = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/* Monday first, and worked out in UTC like everything else that touches a day
-   here — see the note at the top of engine/rotation.js. */
 const weekday = (day) => (new Date(day * 864e5).getUTCDay() + 6) % 7;
 const fmt = (iso, opts) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
@@ -44,18 +32,10 @@ const col = (key) => `var(--st-${key})`;
 const tint = (key, n) => `color-mix(in srgb, var(--st-${key}) ${n}%, transparent)`;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const GLYPH = { family: "●", holiday: "▲", certificate: "▮", linked: "◆" };
-/* Where the first bar sits under a day's number, and how far apart they are.
-   Read by the page to work out how many bars a day has room for; the same
-   numbers are in the stylesheet as the bar's own top and height. */
 const BAR_TOP = 19;
 const BAR_STEP = 15;
-/* How wide the grip at each end of a bar is, in pixels. */
 const GRIP = 8;
-/* Which events a drag may move: his own dates, and the stretches he told. */
 const movable = (it) => it.sort === "state" || it.sort === "hitch" || it.sort === "suggested" || (it.sort === "family" && Boolean(it.id));
-/* Where a dragged event would land: the whole of it shifted by the days the
-   pointer has moved, or one end moved and the other held — and an end never
-   dragged past the other one, which would turn the event inside out. */
 function draggedTo({ item, part, at, over }) {
   const shift = dayOf(over) - dayOf(at);
   const a = dayOf(item.from);
@@ -67,7 +47,6 @@ function draggedTo({ item, part, at, over }) {
 }
 const short = (iso) => fmt(iso, { day: "numeric", month: "short" });
 
-/** A shared link carries the whole plan in the hash — nothing is uploaded. */
 function readHash() {
   try {
     const found = location.hash.match(/^#r=(.+)$/);
@@ -78,8 +57,6 @@ function readHash() {
   }
 }
 
-/* A shared rotation is deflated JSON in URL-safe base64, so its QR code stays
-   small enough to scan off a screen. Old #r= links are still read. */
 const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 async function squeeze(payload) {
@@ -96,30 +73,16 @@ async function readSqueezed() {
     return null;
   }
 }
-/**
- * What a shared link carries: the rotation and its dates, nothing else (not pay,
- * notes, bin, other rotations or the feed code): links are forwarded and kept for years.
- */
 const sharedOf = (plan) => {
   const { who, pattern, anchor, horizon, slips, days, dates, holidays, hitches, suggest, dismissed } = plan;
   return { v: 1, who, pattern, anchor, horizon, slips, days, holidays, hitches, suggest, dismissed,
     dates: (dates || []).map(({ desc, where, src, sig, uid, ...d }) => d) };
 };
-/* The two-way calendar is shown once its address is answering: it needs the
-   proxy on our own server (vps/dav-proxy), and a button that leads to a
-   calendar nobody can reach is worse than no button. */
 const DAV_READY = false;
 
 const toHash = (payload) =>
   `#r=${encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(payload)))))}`;
 
-/**
- * The rotation's stretches away as `engine/seatax.js` absences. `back` is the day
- * after the stretch ends, so days out and days in tile the calendar exactly. A
- * stretch still running is handed over open (no return); one already under way on
- * the window's first day is dropped, so it cannot fake the period's start. The
- * port is not in a rotation, so it is left empty.
- */
 function absencesFor(plan, fromIso, toIso) {
   const last = dayOf(toIso);
   return absencesIn(plan, fromIso, toIso)
@@ -131,10 +94,6 @@ function absencesFor(plan, fromIso, toIso) {
     }));
 }
 
-/**
- * Asks which occurrences of a yearly event a change means. It is the
- * confirmation: no "are you sure" follows, and Undo works as for anything else.
- */
 function ScopeAsk({ verb, what, year, day, onPick, onCancel }) {
   useEffect(() => {
     const key = (e) => { if (e.key === "Escape") onCancel(); };
@@ -160,7 +119,6 @@ function EventPop({ item, rect, onEdit, onDelete, onDuplicate, onClose, children
   useEffect(() => {
     const key = (e) => {
       if (e.key === "Escape") onClose();
-      /* Delete or Backspace deletes the open event, as in Google Calendar. */
       else if ((e.key === "Delete" || e.key === "Backspace") && onDelete
         && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { e.preventDefault(); onDelete(); }
     };
@@ -172,8 +130,6 @@ function EventPop({ item, rect, onEdit, onDelete, onDuplicate, onClose, children
   }, [onClose, onDelete]);
   const WIDE = item.sort === "hitch" || item.sort === "suggested" ? 340 : 280;
   const left = Math.round(Math.max(8, Math.min(rect.left, window.innerWidth - WIDE - 8)));
-  /* On whichever side of the bar has more room: the rotation's events carry
-     their own buttons and are taller than a plain one. */
   const below = window.innerHeight - rect.bottom >= rect.top;
   const many = item.from !== item.to;
   const days = dayOf(item.to) - dayOf(item.from) + 1;
@@ -207,12 +163,6 @@ function EventPop({ item, rect, onEdit, onDelete, onDuplicate, onClose, children
   );
 }
 
-/**
- * What can be done to the rotation's own events. A suggestion is accepted,
- * turned down, or accepted on other dates; a hitch is made a day shorter or
- * longer, given more or fewer days at home than the proportional ones, or put
- * on other dates. Every change moves the suggestions after it.
- */
 function TurnTools({ item, plan, onPlan, onClose }) {
   const [from, setFrom] = useState(item.from);
   const [to, setTo] = useState(item.to);
@@ -272,8 +222,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
   const [cat, setCat] = useState("");
   const [desc, setDesc] = useState("");
   const [more, setMore] = useState(false);
-  /* The saved date being changed, if one is — its own start, end and name,
-     edited in place the way an event is opened in a calendar. */
   const [editing, setEditing] = useState(() => {
     const own = editId ? (plan.dates || []).find((d) => d.id === editId) : null;
     return own ? { id: own.id, what: own.what, on: String(own.on).length > 5 ? own.on : from,
@@ -283,10 +231,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
   const last = from <= to ? to : from;
   const many = dayOf(last) - dayOf(first) + 1;
 
-  /* Where the card sits is taken off the day it belongs to, not worked out
-     from a row and a column: the month has five rows or six, the quadrant is
-     whatever height the screen gives it, and a card placed by arithmetic ends
-     up beside the wrong day on the month that breaks the guess. */
   const [box2, setBox2] = useState(null);
   useEffect(() => {
     const day = document.querySelector(`.rota-day[data-iso="${first}"]`);
@@ -309,9 +253,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
     return () => window.removeEventListener("resize", place);
   }, [first, at]);
 
-  /* What each day in the stretch is now, and what the rotation would have
-     made it — so the card can say "all aboard" or "mixed", and putting the
-     stretch back can name what it goes back to. */
   const now = statesAcross(plan, first, last);
   const planned = statesAcross({ ...plan, days: {} }, first, last);
   const same = now.every((st) => st === now[0]) ? now[0] : null;
@@ -319,8 +260,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
 
   useEffect(() => {
     const key = (e) => { if (e.key === "Escape") onClose(); };
-    /* A press on the calendar is the calendar's to handle — it picks a new day
-       or drags out a new stretch — so only a press elsewhere closes this. */
     const away = (e) => {
       if (!box.current?.contains(e.target) && !e.target.closest?.(".rota-grid")) onClose();
     };
@@ -333,10 +272,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
     };
   }, [onClose]);
 
-  /* What the line says, read as it is typed: "time off 8 to 13 sep #family"
-     brings its own dates and category, and then those win over the days
-     picked on the calendar. Without a date in it, it goes on the days
-     picked. */
   const said = what.trim() ? parseEvent(what, today) : null;
   const add = (e) => {
     e.preventDefault();
@@ -366,9 +301,6 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
       </header>
 
       <div className="rota-card-body">
-        {/* Start and end, the way an event has them. Dragging across the
-            calendar fills these in too; typing is for a stretch that runs
-            into next month. */}
         <div className="rota-range">
           <label><span>Starts</span>
             <input type="date" value={first} onChange={(e) => e.target.value && onRange(e.target.value, last < e.target.value ? e.target.value : last)} />
@@ -528,28 +460,15 @@ function DayCard({ from, to, at, plan, marks, editId, today, onRange, onState, o
 
 export default function Rotation() {
   const [plan, setPlan] = useState(BLANK_PLAN);
-  /* The stretch whose card is open: a start and an end, the same day for a
-     click and two different ones for a drag. `dragging` holds the card back
-     until the button comes up, so it does not jump about under the pointer. */
   const [pick, setPick] = useState(null);
-  /* An event opened by clicking its bar, and where the bar was on screen. */
   const [ev, setEv] = useState(null);
   const [help, setHelp] = useState(false);
-  /* What the calendar quadrant shows: the grid, the agenda (a list of what is
-     coming), or five years at a glance. The other three quadrants follow the
-     month or the year as before. */
   const [view, setView] = useState("grid");
-  /* The fourth quadrant: the year (or the claim), or what the days pay. Tabs,
-     so the board stays two by two however much it carries. */
   const [q4, setQ4] = useState("year");
   const [feed, setFeed] = useState("");
-  /* A QR code on screen: what it is for, and the address in it. */
   const [qr, setQr] = useState(null);
-  /* Which sheet goes to the printer: the turns, or the whole year on one page. */
   const [paper, setPaper] = useState(() => (new URLSearchParams(location.search).get("paper") === "year" ? "year" : "turns"));
-  /* Which header menu is open: print, share or google. */
   const [menu, setMenu] = useState("");
-  /* Where the button that opened it is, so the menu opens under it. */
   const [menuAt, setMenuAt] = useState(0);
   const openMenu = (which) => (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -565,15 +484,12 @@ export default function Rotation() {
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", key); };
   }, [menu]);
-  /* Calendars he keeps in Google (or Outlook, or iCloud), shown here. */
   const [importing, setImporting] = useState(false);
-  /* The holiday suggestion, open: a list to say yes or no to. */
   const [pickHols, setPickHols] = useState(false);
   const [clearing, setClearing] = useState(false);
   const fileBox = useRef(null);
   const [linkedState, setLinkedState] = useState({});
   const [linkedTick, setLinkedTick] = useState(0);
-  /* A change waiting on "only this one / following / all". */
   const [ask, setAsk] = useState(null);
   const [going, setGoing] = useState(false);
   const lo = pick ? (pick.from <= pick.to ? pick.from : pick.to) : "";
@@ -587,13 +503,8 @@ export default function Rotation() {
   }, [pick?.dragging]);
   const [certs, setCerts] = useState([]);
   const [rows, setRows] = useState({ plan: "", certs: "", at: "" });
-  /* The plan as the account last had it — what the page and the phone are
-     each measured against when both have changed it. */
   const base = useRef(null);
-  /* A plan opened from someone's link is theirs, and is never saved over the
-     account behind anybody's back. */
   const fromLink = useRef(false);
-  /* The two-way calendar's sign-in, fetched when asked for. */
   const [dav, setDav] = useState(null);
   const [said, setSaid] = useState(null);
   const [busy, setBusy] = useState("");
@@ -608,9 +519,6 @@ export default function Rotation() {
   const seg = useRef(null);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
-  /* The vault is read here and not at the top of the file: nothing may touch
-     it before the account is known, or one person's rotation opens under
-     another's name. */
   useEffect(() => {
     (async () => { try {
       const shared = readHash() || await readSqueezed();
@@ -627,9 +535,6 @@ export default function Rotation() {
     } catch { /* a plan that will not parse is no plan */ } })();
   }, []);
 
-  /* And then the account, which wins — the browser's copy is what keeps the
-     page working on a ship with no signal, not the truth. A plan opened from a
-     link is nobody's account, and is left alone. */
   useEffect(() => {
     if (!available() || readHash()) return;
     let alive = true;
@@ -657,7 +562,6 @@ export default function Rotation() {
     return () => { alive = false; };
   }, []);
 
-  /* The tax module, once, and only when the switch is thrown. */
   useEffect(() => {
     if (basis !== "uk" || sea.how !== "asking") return undefined;
     const load = Object.values(SEATAX)[0];
@@ -673,14 +577,10 @@ export default function Rotation() {
     setPlan(next);
     try { writeMine(KEY, JSON.stringify(next)); } catch { /* nothing to be done */ }
   }, []);
-  /* A change that can be taken back: it is made at once, and the toast that
-     says what happened carries the plan as it was just before, for Undo. */
   const act = useCallback((next, text) => {
     setSaid({ kind: "ok", text, undo: plan, at: Date.now() });
     change(next);
   }, [plan, change]);
-  /* A change to an event: straight through for a one-off, and by way of the
-     scope question for one that comes round every year. */
   const occurrence = (item, change, text) => {
     const d = (plan.dates || []).find((x) => x.id === item.id);
     if (d?.every === "year" || d?.every === "repeat") { setAsk({ item, change, text }); return; }
@@ -691,8 +591,6 @@ export default function Rotation() {
     change(said.undo);
     setSaid({ kind: "ok", text: "Undone.", at: Date.now() });
   };
-  /* Toasts go away on their own, as a calendar's do; an error stays until it
-     is read and dismissed. */
   useEffect(() => {
     if (!said || said.kind === "bad") return undefined;
     const t = setTimeout(() => setSaid((cur) => (cur === said ? null : cur)), said.undo ? 8000 : 5000);
@@ -704,8 +602,6 @@ export default function Rotation() {
   const cycle = useMemo(() => cycleOf(plan), [plan]);
   const setPattern = (patch) => change({ ...plan, pattern: { ...pattern, ...patch } });
 
-  /* Every date worth seeing, a little either side of the year on screen, so
-     that the lead and tail days of a January or a December carry theirs. */
   const marks = useMemo(
     () => marksOf(plan, `${y - 1}-11-01`, `${y + 1}-02-01`, { certificates: certs }),
     [plan, certs, y],
@@ -724,8 +620,6 @@ export default function Rotation() {
   const year = useMemo(() => yearTally(plan, y, { flights }), [plan, y, flights]);
   const before = useMemo(() => yearTally(plan, y - 1, { flights }), [plan, y, flights]);
   const count = scope === "month" ? months[m] : year;
-  /* Against last month (or last year): a number with its change beside it,
-     the way a time-insights panel reads. */
   const lastCount = useMemo(() => (scope === "month"
     ? monthTally(plan, m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1, { flights })
     : yearTally(plan, y - 1, { flights })), [plan, y, m, scope, flights]);
@@ -741,15 +635,12 @@ export default function Rotation() {
   const payYear = useMemo(() => payOf(plan, `${y}-01-01`, `${y}-12-31`, { flights }), [plan, y, flights]);
   const paySoFar = useMemo(() => (now.slice(0, 4) === String(y) ? payOf(plan, `${y}-01-01`, now, { flights }) : null), [plan, y, now, flights]);
 
-  /* The year so far, which is the number that matters in the year he is in and
-     is the whole year in any other. */
   const awaySoFar = useMemo(() => {
     const thisYear = +now.slice(0, 4);
     if (y > thisYear) return 0;
     return tally(plan, `${y}-01-01`, y < thisYear ? `${y}-12-31` : now, { flights }).abroad;
   }, [plan, y, flights, now]);
 
-  /* The month's grid, whole weeks, with the days either side of it dimmed. */
   const grid = useMemo(() => {
     const first = monthStart(y, m);
     const lead = weekday(first);
@@ -769,12 +660,7 @@ export default function Rotation() {
     });
   }, [plan, y, m, byDay]);
 
-  /* Every event on the month as one bar per week it crosses, the way a
-     calendar draws them — laid out in the engine, where it is measured. */
   const weeks = grid.length / 7;
-  /* Each linked calendar fetched through the site (only with his session),
-     read, and kept here for the session — fetched again on every visit, so
-     what he changes in Google is what he sees here. */
   useEffect(() => {
     let alive = true;
     for (const cal of plan.linked || []) {
@@ -790,8 +676,6 @@ export default function Rotation() {
     }
     return () => { alive = false; };
   }, [JSON.stringify((plan.linked || []).map((c) => c.url)), linkedTick]);
-  /* The linked events that touch a window, as calendar items: read-only,
-     in the colour of their calendar, and named by it. */
   const linkedIn = useCallback((fromIso, toIso) => {
     const a = dayOf(fromIso);
     const b = dayOf(toIso);
@@ -814,8 +698,6 @@ export default function Rotation() {
     return out;
   }, [plan.linked, plan.hidden, linkedState]);
 
-  /* An .ics file taken in once: its events become his own, filed under
-     "Other", and a second import of the same file adds nothing twice. */
   const importFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -834,10 +716,6 @@ export default function Rotation() {
     }
   };
 
-  /* A bar being dragged: which event, which part of it (the whole of it, or
-     one end), the day it was picked up on and the day it is over now. The
-     bars are laid out again from this on every move, so what is under the
-     pointer is the event as it will be — nothing is saved until it is let go. */
   const [drag, setDrag] = useState(null);
   const bars = useMemo(() => {
     if (!grid.length) return [];
@@ -850,8 +728,6 @@ export default function Rotation() {
     }
     return barsOf(items, grid[0].iso, weeks);
   }, [plan, certs, grid, weeks, drag, linkedIn]);
-  /* The day under a point on screen, measured by position rather than by what
-     is under the pointer: a point in the 4px gap between days is over no day. */
   const dayAt = (x, y) => {
     let best = null;
     let far = Infinity;
@@ -872,13 +748,9 @@ export default function Rotation() {
     };
     const up = (e) => {
       setDrag(null);
-      /* Where it was let go, read off the release itself: a quick hand lets go
-         before the last move has been drawn, and the event then landed a day
-         short of where the pointer was. */
       const last = dayAt(e.clientX, e.clientY);
       if (last) drag.over = last;
       if (drag.over === drag.at) {
-        /* Not moved: it was a click, and a click opens the event. */
         setPick(null);
         setEv({ item: drag.item, rect: drag.rect });
         return;
@@ -899,10 +771,6 @@ export default function Rotation() {
       window.removeEventListener("keydown", cancel);
     };
   }, [drag, plan, act]);
-  /* How many bars a day has room for, measured off the day itself: the
-     quadrant is whatever height the screen gives it, and a bar drawn into a
-     day with no room for it would cover the next week's date. What does not
-     fit is counted on the day instead ("+2"), never hidden without a word. */
   const gridBox = useRef(null);
   const [lanes, setLanes] = useState(2);
   useEffect(() => {
@@ -932,14 +800,9 @@ export default function Rotation() {
     return n;
   }, [bars, lanes, grid]);
 
-  /* The agenda is paged by what fits, never scrolled and never cut: each
-     page is as many rows as the quadrant has height for, measured. */
   const agendaBox = useRef(null);
   const [perPage, setPerPage] = useState(8);
   const [page, setPage] = useState(0);
-  /* Start from a page too long to fit, then take rows off until the list is
-     no taller than its box — measured after drawing, because the month
-     headings make every page a different height and no estimate is right. */
   useEffect(() => {
     const el = agendaBox.current;
     if (!el) return undefined;
@@ -952,9 +815,6 @@ export default function Rotation() {
     const list = agendaBox.current?.querySelector(".rota-agenda");
     if (list && perPage > 2 && list.scrollHeight > list.clientHeight + 1) setPerPage((n) => n - 1);
   });
-  /* The stretches of a month, paged by what fits, measured the same way as
-     the agenda: a month with six stretches has more than a quarter of the
-     screen can hold, and a list cut at the panel's edge says nothing. */
   const runsBox = useRef(null);
   const [runsPer, setRunsPer] = useState(12);
   const [runsPage, setRunsPage] = useState(0);
@@ -975,7 +835,6 @@ export default function Rotation() {
       .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
     : []), [view, plan, now, certs, linkedIn]);
   const years = useMemo(() => (view === "years" ? yearsOf(plan, y, 5, { flights }) : []), [view, plan, y, flights]);
-  /* The first person in "other rotations", and the next stretch you are both home. */
   const together = useMemo(() => {
     const o = (plan.others || [])[0];
     if (!o) return null;
@@ -1000,16 +859,11 @@ export default function Rotation() {
     return landing(drawn, marksOf(plan, first, last, { certificates: certs }));
   }, [plan, certs, now]);
   const soon = useMemo(() => nextChange(turns, now), [turns, now]);
-  /* The same number on the app's icon, where the phone allows it — an
-     installed copy shows it without being opened. */
   useEffect(() => {
     try {
       if (soon && navigator.setAppBadge) navigator.setAppBadge(soon.inDays).catch(() => {});
     } catch { /* no badge on this device */ }
   }, [soon]);
-  /* How many turns a printed page carries. Settled by running the printed
-     bench — a sheet that grows past the page spills a blank one, and that is
-     what fails. */
   const sheets = useMemo(() => sheetsOf(turns, 10), [turns]);
   const everyMark = useMemo(
     () => turns.flatMap((t) => [...t.aboard.marks, ...t.home.marks]),
@@ -1018,10 +872,6 @@ export default function Rotation() {
 
   const ledger = useMemo(() => {
     if (basis !== "uk" || sea.how !== "ready" || typeof sea.module?.runLedger !== "function") return null;
-    /* Six years back is further than any claim period runs, and the ledger
-       itself decides where the claim actually starts. Nothing beyond today is
-       fed in: a margin is a fact about days already spent, and projecting it
-       forward would flatter it into a number he could act on. */
     const from = isoOf(dayOf(now) - 6 * 366);
     try {
       const absences = absencesFor(plan, from, now);
@@ -1029,13 +879,8 @@ export default function Rotation() {
         from,
         absences: absences.length,
         run: sea.module.runLedger(absences),
-        /* The ledger's own figures stop at his last landing. Where he stands
-           *today* is a different question and the module has an answer for it,
-           so the panel asks that one. */
         stand: typeof sea.module.standing === "function" ? sea.module.standing(absences, now) : null,
         leave: typeof sea.module.mustLeaveBy === "function" ? sea.module.mustLeaveBy(absences) : null,
-        /* In half-days, the same unit as the margin: what it costs to get a
-           margin that has gone under back to nought. */
         recover: typeof sea.module.stayOutFor === "function" ? sea.module.stayOutFor(absences, 0) : null,
       };
     } catch (e) {
@@ -1073,9 +918,6 @@ export default function Rotation() {
   const keep = async ({ quiet = false } = {}) => {
     if (!quiet) setBusy("saving");
     try {
-      /* Saved over the copy it was read from. If the account was written in
-         the meantime — an event made on the phone — the two are put
-         together and saved again, never one written over the other. */
       let mine = plan;
       let at = rows.at;
       let one = null;
@@ -1092,12 +934,8 @@ export default function Rotation() {
       }
       if (!one) throw new Error("it kept changing elsewhere — try again");
       base.current = { ...BLANK_PLAN, ...one.data };
-      /* The calendar codes are the account's; the page takes them from it. */
       const kept = { ...mine, feed: one.data?.feed, dav: one.data?.dav };
       if (!samePlan(kept, plan)) change(kept);
-      /* Only the rotation. The certificates belong to their own page, and a
-         save from here would write this page's copy of them over whatever was
-         changed there since it was read. */
       setRows({ plan: one?.id || rows.plan, certs: rows.certs, at: one.updated_at });
       if (!quiet) setSaid({ kind: "ok", text: "Kept. It will be here on your phone too." });
     } catch (e) {
@@ -1106,9 +944,6 @@ export default function Rotation() {
     if (!quiet) setBusy("");
   };
 
-  /* What the phone changed, brought in: when the page comes back into view,
-     and every minute while it is in view. Put together with whatever is not
-     saved here yet, so nothing on either side is lost. */
   const pull = useCallback(async () => {
     if (!rows.plan || fromLink.current || document.hidden || !available()) return;
     try {
@@ -1137,8 +972,6 @@ export default function Rotation() {
     };
   }, [pull]);
 
-  /* With the phone connected, a change here goes to it by itself, a moment
-     after it is made — a calendar that has to be saved is not in sync. */
   const keepRef = useRef(keep);
   keepRef.current = keep;
   useEffect(() => {
@@ -1173,10 +1006,6 @@ export default function Rotation() {
     }
   };
 
-  /**
-   * The pattern worked out from the last four saved trips, fetched only when
-   * pressed, not on every page load. Nothing is saved: the fields are filled.
-   */
   const fromTrips = async () => {
     setBusy("reading");
     try {
@@ -1237,8 +1066,6 @@ export default function Rotation() {
   const editDate = (id, patch) => change({
     ...plan, dates: plan.dates.map((d) => (d.id === id ? { ...d, ...patch } : d)),
   });
-  /* Deleting a date from the plan goes the same way as from the calendar:
-     into the bin, with Undo. */
   const binDate = (id) => act(dropDate(plan, id, now), `Deleted “${(plan.dates || []).find((d) => d.id === id)?.what || "date"}”.`);
 
 
@@ -1255,9 +1082,6 @@ export default function Rotation() {
     change({ ...plan, slips });
   };
 
-  /* The indicator under the segmented control follows the button that is on,
-     measured rather than guessed: "Month" and "Year" are not the same width,
-     and a bar that assumed they were slid to the wrong place. */
   useEffect(() => {
     const move = () => {
       const on = seg.current?.querySelector('[aria-pressed="true"]');
@@ -1272,7 +1096,6 @@ export default function Rotation() {
     const onKey = (e) => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || planBox.current?.open) return;
       if (e.ctrlKey || e.metaKey || e.altKey) {
-        /* Ctrl/⌘+Z takes back the last change, while its toast is still up. */
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && said?.undo) { e.preventDefault(); undo(); }
         return;
       }
@@ -1283,8 +1106,6 @@ export default function Rotation() {
       else if (key === "y") setScope("year");
       else if (key === "a") setView((v) => (v === "agenda" ? "grid" : "agenda"));
       else if (key === "t") backToToday();
-      /* The Google Calendar keys: C creates on today, G goes to a date, ?
-         lists them all. */
       else if (key === "c") { e.preventDefault(); backToToday(); setScope("month"); setPick({ from: now, to: now, dragging: false }); }
       else if (key === "g") { e.preventDefault(); setGoing(true); }
       else if (e.key === "?") setHelp(true);
@@ -1336,8 +1157,6 @@ export default function Rotation() {
           <button type="button" onClick={() => step(1)} title="Forward" aria-label="Forward">›</button>
         </div>
 
-        {/* The number a rotation worker looks at first: how long until the next
-            crew change. */}
         {soon && (
           <div className={`rota-count is-${soon.kind === "fly home" ? "home" : "out"}`}
             title={`${soon.kind === "fly home" ? "Home" : "Back out"} on ${fmt(soon.on, { weekday: "long", day: "numeric", month: "long" })}`}>
@@ -1346,12 +1165,8 @@ export default function Rotation() {
           </div>
         )}
 
-        {/* The toolbar never goes to a second line: a wrapped header costs the
-            board forty-odd pixels, which is a row of figures in every panel. */}
         <div className="rota-grow" />
 
-        {/* Every button says what it does in words. Six, three of them menus,
-            because more named buttons do not fit on one line of a laptop. */}
         <button className="rota-btn" type="button" onClick={() => setFlights((v) => !v)}
           aria-pressed={flights} title="Whether a day spent in the air counts as a day out of the country">
           <i aria-hidden="true">⚖️</i><b><span className="is-long">{flights ? "Flights count" : "Flights don't"}</span><span className="is-short">{flights ? "Flights ✓" : "Flights ✗"}</span></b>
@@ -1451,8 +1266,6 @@ export default function Rotation() {
           </div>
         </div>
       )}
-      {/* Floating, not in the page: a message that pushes the board down takes
-          a row of figures from every quadrant for as long as it is up. */}
       {said && (
         <p className={`rota-said is-${said.kind}`} role="status">
           <span>{said.text}</span>
@@ -1545,14 +1358,10 @@ export default function Rotation() {
                 <div className="rota-grid" ref={gridBox}>
                   {grid.map((cell, i) => (
                     <button type="button" key={cell.iso} data-iso={cell.iso}
-                      /* Placed, not flowed: the bars below are placed on the
-                         same grid, and a flowed day would step round them. */
                       style={{ gridRow: Math.floor(i / 7) + 1, gridColumn: (i % 7) + 1,
                         }}
                       className={`rota-day${cell.dim ? " is-dim" : ""}${cell.iso === now ? " is-now" : ""}${cell.state === "none" ? " is-none" : ""}`
                         + `${saidOn(plan, cell.iso) ? " is-said" : ""}${inPick(cell.iso) ? " is-picked" : ""}`}
-                      /* Press and drag, the way a calendar picks a stretch; a
-                         press on the one day already open closes it. */
                       onPointerDown={(e) => {
                         if (e.button !== 0) return;
                         e.preventDefault();
@@ -1563,7 +1372,6 @@ export default function Rotation() {
                       onPointerEnter={() => {
                         if (pick?.dragging) setPick((p) => ({ ...p, to: cell.iso }));
                       }}
-                      /* The keyboard has no drag: Enter opens the one day. */
                       onClick={(e) => {
                         if (e.detail === 0) setPick(inPick(cell.iso) && lo === hi ? null : { from: cell.iso, to: cell.iso, dragging: false });
                       }}
@@ -1583,11 +1391,6 @@ export default function Rotation() {
                       ) : null}
                     </button>
                   ))}
-                  {/* The events, one bar each, linked across the days they
-                      cover. Rounded where the event really starts or ends,
-                      squared where it carries on into the next week, and the
-                      name written on the first piece of every week so a bar
-                      that wraps still says what it is. */}
                   {shownBars.map((b) => {
                     const it = b.item;
                     const ink = it.sort === "hitch" || it.sort === "suggested" ? col("aboard")
@@ -1610,10 +1413,6 @@ export default function Rotation() {
                           if (e.button !== 0) return;
                           e.preventDefault();
                           const at = dayAt(e.clientX, e.clientY) || it.from;
-                          /* The last few pixels of a real start or end take
-                             hold of that end alone; anywhere else takes the
-                             whole event. Holidays and certificates are not his
-                             to move, and only open. */
                           const r = e.currentTarget.getBoundingClientRect();
                           const part = !movable(it) ? "none"
                             : b.head && e.clientX - r.left < GRIP ? "start"
@@ -1621,7 +1420,6 @@ export default function Rotation() {
                           setEv(null);
                           setDrag({ item: it, part, at, over: at, rect: { left: r.left, top: r.top, bottom: r.bottom } });
                         }}
-                        /* The keyboard has no drag: Enter opens the event. */
                         onClick={(e) => {
                           if (e.detail !== 0) return;
                           const r = e.currentTarget.getBoundingClientRect();
@@ -1670,13 +1468,8 @@ export default function Rotation() {
               </div>
             )}
             <div className="rota-legend">
-              {/* The rotation is drawn as events, not as a colour on each day:
-                  the key says which bar is which. */}
               <span><b style={{ background: col("aboard") }} />⚓ Your hitch</span>
               <span><b className="is-dashed" style={{ borderColor: col("aboard") }} />⚓ Suggested</span>
-              {/* The categories in use, each a switch: pressed off, its events
-                  leave the calendar until it is pressed on again. Only the ones
-                  he actually uses are offered — six empty switches are noise. */}
               {(() => {
                 const used = [...new Set((plan.dates || []).map((d) => d.cat || "none")), ...(plan.linked || []).map((c) => `g:${c.id}`)];
                 if (used.length < 2 && used[0] === "none") return null;
@@ -1765,10 +1558,6 @@ export default function Rotation() {
               ))}
             </div>
           </header>
-          {/* Wide and short, both ways round: the figures across the top, and
-              then the two blocks that would not fit under each other placed
-              beside each other instead. The quadrant has width to spare and
-              never has height to spare. */}
           <div className="rota-body is-wide">
             {q4 === "pay" ? (
               <Pay month={payMonth} year={payYear} soFar={paySoFar} label={scope === "month" ? MONTHS[m] : String(y)}
@@ -1796,8 +1585,6 @@ export default function Rotation() {
               </nav>
             )}
             {scope === "month" && !runs.length && (
-              /* Nothing to run: no rotation, or a month before it starts. The
-                 calendar is left blank rather than filled with a guess. */
               <div className="rota-empty">
                 {!hasRotation(plan) ? (
                   <>
@@ -1825,8 +1612,6 @@ export default function Rotation() {
                     </p>
                     {inside.length > 0 && (
                       <p className="rota-note is-lit">
-                        {/* A stretch that falls inside a run is named once, with its
-                            span, not once for each of its days. */}
                         {inside.filter((mark, i, all) => !mark.id || all.findIndex((x) => x.id === mark.id) === i)
                           .slice(0, 4).map((mark) => (
                           <span key={`${mark.on}${mark.what}`}>
@@ -1843,9 +1628,6 @@ export default function Rotation() {
               );
             }) : (
               <>
-                {/* Six months and six months, beside each other. Twelve rows
-                    under one header is taller than the quadrant ever is, and
-                    the quadrant has width it was not using. */}
                 <div className="rota-halves">
                   {[[0, 6], [6, 12]].map(([first, last]) => (
                     <table className="rota-table" key={first}>
@@ -1895,9 +1677,6 @@ export default function Rotation() {
         </section>
       </div>
 
-      {/* Outside the quadrant on purpose: a quadrant clips what it holds, so
-          a card drawn inside one comes out cut in half. It is placed against
-          the window instead. */}
       {ask && (
         <ScopeAsk verb={ask.change.kind === "delete" ? "Delete" : ask.change.kind === "move" ? "Move" : "Change"}
           what={ask.item.what} year={+ask.item.from.slice(0, 4)} day={ask.item.every === "repeat" ? short(ask.item.from) : ""}
@@ -1936,7 +1715,6 @@ export default function Rotation() {
           at={grid.findIndex((c) => c.iso === lo)}
           plan={plan}
           marks={(() => {
-            /* A stretch shows each thing on it once, not once a day. */
             const seen = new Set();
             return [...marksOf(plan, lo, hi, { certificates: certs }),
               ...linkedIn(lo, hi).map((e) => ({ on: e.from, what: `${e.what} · ${e.source}`, sort: "linked", note: "" }))].filter((mk) => {
@@ -2077,10 +1855,6 @@ export default function Rotation() {
             </label>
           </section>
 
-          {/* Someone else's rotation beside yours — a partner's, a crewmate's —
-              for the one question it is kept for: when are we both home. Pasted
-              from their shared link, or typed in. The first one is drawn under
-              each day of the calendar as a thin line in their colour. */}
           <section className="panel">
             <h2>Other rotations</h2>
             {(plan.others || []).map((o, k) => {
@@ -2206,9 +1980,6 @@ export default function Rotation() {
             </div>
           </section>
 
-          {/* Certificates have a page of their own. This page reads them — their
-              expiry is marked on the calendar and rings in the calendar feed —
-              and does not edit or save them. */}
           <section className="panel rota-slips">
             <h2>The turns, and the ones that moved</h2>
             <p className="note">
@@ -2241,11 +2012,6 @@ export default function Rotation() {
             </ol>
           </section>
 
-          {/* The two-way calendar: the iPhone's and the Mac's own Calendar
-              signed in to the plan, so an event made, moved or deleted on
-              either side is made, moved or deleted on the other. One profile
-              to install and nothing to type; Android signs in with the same
-              three things by hand. */}
           {DAV_READY && <section className="panel" id="rota-dav">
             <h2>iPhone and Mac — both ways</h2>
             {!rows.plan ? (
@@ -2291,11 +2057,6 @@ export default function Rotation() {
             )}
           </section>}
 
-          {/* The rotation in the calendar he already uses, on the phone and the
-              desktop: a subscription that Google, Apple or Outlook fetch again
-              on their own. The reminders ride inside it as alarms, and the
-              countdown as an all-day event on each day — which is how it
-              reaches the calendar widget on his home screen. */}
           <section className="panel" id="rota-feed">
             <h2>Your rotation in Google, Apple or Outlook</h2>
             {!rows.plan ? (
@@ -2342,9 +2103,6 @@ export default function Rotation() {
             </div>
           </section>
 
-          {/* The bin: what was deleted in the last thirty days, each with the
-              way back. Empty, it says so rather than disappearing, so there is
-              one place to look. */}
           <section className="panel" id="rota-bin">
             <h2>Deleted — kept {TRASH_DAYS} days</h2>
             {(plan.trash || []).length ? (
@@ -2370,8 +2128,6 @@ export default function Rotation() {
         </footer>
       </dialog>
 
-      {/* The printed sheet: nothing of this is on the screen, and nothing of
-          the screen is on the paper. */}
       <div className="for-paper" aria-hidden="true">
         {paper === "year" ? <YearSheet plan={plan} y={y} now={now} who={plan.who} yearCount={year} pattern={pattern} certs={certs} /> : <>
         <div className="sheet">
@@ -2468,10 +2224,6 @@ export default function Rotation() {
           </div>
         ))}
 
-        {/* The dates get a sheet of their own rather than a footer on the last
-            one. A footer grows with however many dates there are, and a sheet
-            that grows past the page takes a blank one with it — so the thing
-            that varies is kept where it cannot push anything off. */}
         <div className="sheet">
           <div className="rot-head">
             <b>Dates on this plan</b>
@@ -2497,10 +2249,6 @@ export default function Rotation() {
   );
 }
 
-/**
- * The day-rate quadrant: how much of the year was spent out of the country,
- * against the mark, and against last year.
- */
 function DayRate({ year, before, soFar, y, bar, flights }) {
   const over = year.abroad >= LINE;
   const delta = (key) => year[key] - before[key];
@@ -2576,11 +2324,6 @@ function DayRate({ year, before, soFar, y, bar, flights }) {
   );
 }
 
-/**
- * The UK salaried quadrant: the Seafarers' Earnings Deduction claim. Every number
- * is `engine/seatax.js`'s; `standing` carries the ledger forward to today. The
- * margin is in half-days and the days he may stay are twice it; both are labelled.
- */
 function Salaried({ sea, ledger }) {
   if (sea.how === "asking") return <p className="rota-note">Working the claim out…</p>;
   if (sea.how === "absent") {
@@ -2617,8 +2360,6 @@ function Salaried({ sea, ledger }) {
     );
   }
 
-  /* Today's figures where there are any, and the ledger's last landing where
-     there are not — never a mixture presented as one. */
   const live = stand && !stand.before ? stand : run;
   const half = Number.isFinite(live.marginHalfDays) ? live.marginHalfDays : null;
   const stay = Number.isFinite(live.daysHeCanStay) ? live.daysHeCanStay : (half === null ? null : half * 2);
@@ -2639,9 +2380,6 @@ function Salaried({ sea, ledger }) {
         <div>
           <div className="rota-k"><span aria-hidden="true">🏠</span> Days in the UK</div>
           <div className="rota-big" style={{ color: col("home") }}>{live.ukDays}</div>
-          {/* Off the same elapsed total as the line above it. The ledger's own
-              `outDays` stops at his last landing and would not add up with a
-              figure carried forward to today. */}
           <div className="rota-s">{elapsed - live.ukDays} days out of it</div>
         </div>
         <div>
@@ -2664,10 +2402,6 @@ function Salaried({ sea, ledger }) {
         </div>
       </div>
 
-      {/* The two numbers that must never be read as one another. */}
-      {/* Two halves of one panel: the margin and what it means on the
-          left, the state of the claim on the right. Stacked, they are
-          taller than any quadrant ever is. */}
       <div className="rota-half">
         <div className={`rota-margin${tight ? " is-tight" : ""}`}>
           <div>
@@ -2688,13 +2422,6 @@ function Salaried({ sea, ledger }) {
           {half === null ? "no margin worked out yet" : plural(half, "half-day", "half-days")}
           {stay === null ? "" : ` is ${plural(stay, "calendar day", "calendar days")}`} at home.
         </p>
-        {/* The sentence above is the one that has to be read; the mechanism
-            under it is read once and then known. It folds so that the panel
-            fits on a short screen without the figures giving up any room —
-            and it opens by itself on paper, where there is no folding. */}
-        {/* Beside the margin it is about, not under the list of dates: this is
-            the sentence that says which way the number is moving, and the
-            left column is the one with room for it. */}
         <p className="rota-note">
           {inUk
             ? "While you are at home the margin falls by half a day every day."
@@ -2739,9 +2466,6 @@ function Salaried({ sea, ledger }) {
             <span className="rota-pc" />
           </div>
         </div>
-        {/* Where the number comes from and what it does not know. Folded for
-            the same reason as the other one: the figures never give up room
-            to prose, and prose read once does not need to sit there. */}
         <details className="rota-why">
           <summary>Where this comes from</summary>
           <p className="rota-note">
@@ -2756,15 +2480,8 @@ function Salaried({ sea, ledger }) {
   );
 }
 
-/** An amount in the currency he set, whole units, grouped. */
 const money = (n, cur) => `${cur}${Math.round(n || 0).toLocaleString("en-GB")}`;
 
-/**
- * What the days pay — this period, the year so far and the year as planned.
- * Worked out from the same days the calendar shows, so a turn that slips or
- * a day sold moves the money with it. Until a rate is set it says how to set
- * one, rather than showing noughts that look like an answer.
- */
 function Pay({ month, year, soFar, label, y, onSet }) {
   if (!month.set) {
     return (
@@ -2807,12 +2524,6 @@ function Pay({ month, year, soFar, label, y, onSet }) {
 }
 
 
-/**
- * A QR code for a phone to scan — the rotation, to open it or add it beside
- * one's own, or the calendar address, to subscribe. Drawn here from the
- * address, as a picture that needs no server; the library that draws it is
- * only fetched when one is asked for.
- */
 function QrBox({ what, url, onClose }) {
   const [svg, setSvg] = useState("");
   const [err, setErr] = useState("");
@@ -2849,12 +2560,6 @@ function QrBox({ what, url, onClose }) {
   );
 }
 
-/**
- * The year on one sheet of A4, the way a wall planner is: twelve months, each
- * day with a letter for where he is. Letters and not colours, because the
- * page prints the way a print dialog prints — backgrounds off — and a planner
- * that only reads in colour comes out of a printer blank.
- */
 function YearSheet({ plan, y, now, who, yearCount, pattern, certs }) {
   const LETTER = { aboard: "A", hotel: "H", out: "T", back: "T", home: "" };
   const states = statesAcross(plan, `${y}-01-01`, `${y}-12-31`);
@@ -2900,8 +2605,6 @@ function YearSheet({ plan, y, now, who, yearCount, pattern, certs }) {
   );
 }
 
-/* Where each calendar service keeps the address a calendar can be read from,
-   in the words its own settings use, and the only address it can be. */
 const PROVIDERS = {
   google: {
     mark: "🟦", name: "Google", color: "#4285F4",
@@ -2935,11 +2638,6 @@ const PROVIDERS = {
   },
 };
 
-/**
- * A calendar he keeps elsewhere (Google, Outlook or Apple), read-only by its
- * address and fetched again on every visit. The address stays in his own plan:
- * not in a shared link, a QR code or the feed he gives out.
- */
 function CalendarLink({ provider, plan, status, onAdd, onRemove, onRefresh, onClose }) {
   const P = PROVIDERS[provider] || PROVIDERS.google;
   const [url, setUrl] = useState("");
@@ -3005,12 +2703,6 @@ function CalendarLink({ provider, plan, status, onAdd, onRemove, onRefresh, onCl
   );
 }
 
-/**
- * The holidays, offered — never assumed. The calendar starts with nothing on
- * it; this lists the holidays of the country he calls home, each one ticked
- * or not by him, and only what he adds goes on. "No thanks" is an answer too,
- * and the suggestion is not offered again.
- */
 function HolidayPick({ plan, y, onAnswer, onClose }) {
   const [country, setCountry] = useState(plan.holidays?.country || "BR");
   const list = holidaySuggestions({ ...plan, holidays: { ...(plan.holidays || {}), country } }, y);
@@ -3057,13 +2749,6 @@ function HolidayPick({ plan, y, onAnswer, onClose }) {
   );
 }
 
-/**
- * Clearing the calendar: a question that says exactly what will go and how
- * many of each, because it takes off many things at once — the one kind of
- * delete that gets a confirmation here rather than only an Undo afterwards.
- * Each kind can be left on. The rotation itself is kept unless it is ticked
- * too.
- */
 function ClearAsk({ plan, onClear, onClose }) {
   const has = clearable(plan);
   const KINDS = [

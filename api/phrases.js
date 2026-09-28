@@ -1,5 +1,3 @@
-/** Every phrase that has reached paper, so the bank does not repeat itself,
- *  across devices and not only in one browser. */
 import { db, requireSession } from "./_supabase.js";
 
 export default async function handler(req, res) {

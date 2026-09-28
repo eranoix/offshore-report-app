@@ -1,7 +1,3 @@
-/**
- * Accounts, for whoever runs the site. There is no email server, so recovery is
- * manual: the admin sets a new password and the person changes it from Account.
- */
 import { requireSession, admins, isId } from "./_supabase.js";
 
 const base = () => (process.env.SUPABASE_URL || "").replace(/\/+$/, "");
@@ -11,9 +7,6 @@ const adminHeaders = () => ({
   "content-type": "application/json",
 });
 
-/* This Supabase holds accounts for other systems too. Only the ones created by
-   this site are ours to list, change or delete — touching the others would take
-   someone's login away from a different application. */
 const APP = "offshore-report-app";
 const isOurs = (user) => user?.app_metadata?.app === APP;
 

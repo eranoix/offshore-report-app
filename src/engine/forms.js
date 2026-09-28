@@ -1,17 +1,8 @@
-/**
- * The published forms, fetched once and kept in this browser, so a changed
- * form needs no release. Order: kept copy, then server, then the compiled-in
- * form, so there is always a form offline. Kept in the vault's account-free
- * settings, since blank forms must survive signing out.
- */
 import { readSetting, writeSetting } from "./vault";
 import { PACKED, PACKED_AT } from "../forms/published";
 import { FORM_KINDS, isSheet } from "./formkinds";
 
 const KEPT = "forms:held";
-/* The one list, imported rather than repeated, less the workbooks: nothing
-   fills a workbook offline, so carrying its bytes would only waste the
-   browser's limited storage and push out forms that are filled. */
 const KINDS = FORM_KINDS.filter((k) => !isSheet(k));
 
 let held = null;
@@ -42,18 +33,10 @@ const toText = (bytes) => {
 };
 const fromText = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-/**
- * When the copy that runs from a folder was built, and what it carries. It
- * cannot ask the server, so the page has to tell the user.
- */
 export const packedAt = () => (__OFFLINE__ ? PACKED_AT : "");
 export const packedForms = () => (__OFFLINE__ ? Object.keys(PACKED) : []);
 
-/** What this browser is holding for a form, if anything. */
 export function heldForm(kind) {
-  /* The copy from a folder holds what was packed into it and nothing else:
-     there is no store behind it, and the vault it would read is another
-     machine's. */
   if (__OFFLINE__) {
     const packed = PACKED[kind];
     if (!packed?.bytes) return null;
@@ -72,19 +55,12 @@ export function heldForm(kind) {
   }
 }
 
-/** Everything the panel needs about a form beyond its bytes. */
 export const heldAbout = (kind) => {
   const one = __OFFLINE__ ? PACKED[kind] : read()[kind];
   return one ? { version: one.version, anchors: one.anchors || {}, blanks: one.blanks || {}, wording: one.wording || {} } : null;
 };
 
-/**
- * Catch up with what is published: fetches only the forms held at an older
- * version. Called once on open; fails quietly offline.
- */
 export async function catchUp() {
-  /* The copy that runs from a folder has no server behind it at all, and the
-     forms compiled into it are the forms. */
   if (__OFFLINE__) return false;
   if (asked) return asked;
   asked = (async () => {
@@ -125,16 +101,11 @@ export async function catchUp() {
   return asked;
 }
 
-/**
- * Ask again, now. `catchUp` runs once; after publishing, the publisher's own
- * browser must refetch to see the change without a reload.
- */
 export async function catchUpAgain() {
   asked = null;
   return catchUp();
 }
 
-/** Forget everything held, so the next opening fetches it again. */
 export function forgetForms() {
   held = {};
   asked = null;

@@ -1,12 +1,3 @@
-/**
- * Writes anchors (slot -> w14:paraId) for every form, because paragraph ids
- * survive editing while printed labels do not. Run whenever a form changes:
- *
- *     node scripts/anchors.mjs
- *
- * The CAAP forms are read by "LABEL:" lines; the trip form by the table cell to
- * the right of a label. A MISSING slot aborts with nothing written.
- */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,11 +13,6 @@ const said = (p) =>
   [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("").replace(/&amp;/g, "&");
 const flat = (t) => t.replace(/\s+/g, " ").trim();
 
-/**
- * The document as tables of rows of cells, each with its text and paragraphs.
- * The regexes are not nestable, so a nested table stops the reading rather
- * than being guessed at.
- */
 function tablesOf(xml) {
   return [...xml.matchAll(TBL)].map((t) => {
     if (t[0].slice(6).includes("<w:tbl>")) throw new Error("a table inside a table — this reading cannot do that");
@@ -38,7 +24,6 @@ function tablesOf(xml) {
   });
 }
 
-/** The cell to the right of the one that says this — the nth time it says it. */
 function rightOf(tables, label, nth = 0) {
   let seen = 0;
   for (const table of tables) {
@@ -53,7 +38,6 @@ function rightOf(tables, label, nth = 0) {
   return null;
 }
 
-/* The labels each form prints, in the order the filling writes them. */
 const LINES = {
   witness: ["WITNESS", "POSITION & SITE", "NAME FOR WHOM TESTIMONY IS FOR", "RELATIONSHIP WITH CANDIDATE"],
   observation: ["ASSESSOR", "POSITION & SITE", "NAME OF CANDIDATE OBSERVED", "RELATIONSHIP WITH CANDIDATE"],
@@ -71,10 +55,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
   const anchors = {};
   const missing = [];
 
-  /* The four named lines, longest label first — "RELATIONSHIP WITH CANDIDATE"
-     contains "CANDIDATE", and a shorter label would take its line. The trip
-     form has none of these: its labels carry no colon and sit in a cell of
-     their own, and it is read further down. */
   if (LINES[kind]) {
     const order = LINES[kind]
       .map((label, i) => ({ label, slot: SLOTS[i] }))
@@ -89,15 +69,12 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
   }
 
   if (kind === "witness") {
-    /* The reference box, printed as WT00 twice — the box and its shadow. */
     const refs = paras.filter((p) => /^\s*WT00\s*$/.test(p.text) && p.id);
     if (refs.length) anchors.ref = refs.map((p) => p.id);
     else missing.push("ref");
   }
 
   if (kind === "knowledge") {
-    /* Question and answer lines, in pairs: the answer is the first `A:` under
-       its question, with the space left to write in between. */
     for (let n = 1; n <= 4; n += 1) {
       const at = paras.findIndex((p) => new RegExp(`^\\s*Q${n}:`).test(p.text));
       if (at < 0) { missing.push(`q${n}`); continue; }
@@ -109,7 +86,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
   }
 
   if (kind === "feedback") {
-    /* Where the assessor's box ends and the candidate's begins. */
     const split = paras.find((p) => /comments in relation to the CAAP scheme/i.test(p.text));
     if (split) anchors.split = split.id;
     else missing.push("split");
@@ -122,19 +98,12 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
   }
 
   if (kind === "trip") {
-    /* Nothing here prints a colon. Every label is a cell and every answer is
-       the cell next to it, so each one is asked for by what its neighbour
-       says — never by counting columns, which is what breaks the day somebody
-       adds one in the editor. */
     const tables = tablesOf(xml);
     const put = (slot, cell) => {
       if (cell && cell.ids.length) anchors[slot] = cell.ids[0];
       else missing.push(slot);
     };
 
-    /* Who, what they do, which ship, which dates, what for. "Position/Job
-       Title" is printed twice — the first is the assessee's, the second the
-       assessor's, which is the order the row itself puts them in. */
     put("assesseeName", rightOf(tables, "Assessee Name"));
     put("assesseeRole", rightOf(tables, "Position/Job Title", 0));
     put("worksite", rightOf(tables, "Worksite/Vessel"));
@@ -143,8 +112,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
     put("tripDates", rightOf(tables, "Date of Assessment from/To"));
     put("workscope", rightOf(tables, "Workscope"));
 
-    /* The grid, found by its own heading row rather than by being the third
-       table. Twelve criteria, five columns to mark, one comment each. */
     const HEAD = ["Criteria", "1", "2", "3", "4", "5", "Comments"];
     const grid = tables.find((t) =>
       t[0] && t[0].length === HEAD.length && t[0].every((c, i) => flat(c.text) === HEAD[i]));
@@ -159,9 +126,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
       });
     }
 
-    /* The two writing boxes: a heading row of its own, and the box under it.
-       All of the box's paragraphs, because prose runs to more than one — the
-       one place a list belongs, the way `witness.ref` already is one. */
     const boxUnder = (heading) => {
       const table = tables.find((t) => t[0] && t[0].length === 1 && flat(t[0][0].text) === heading);
       return table && table[1] ? table[1][0] : null;
@@ -172,8 +136,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
       else missing.push(slot);
     }
 
-    /* What the office fills in when the form reaches it. The signature cells
-       are deliberately not here: nothing is ever written into them. */
     const onshore = tables.find((t) => t[0] && t[0].length === 1 && flat(t[0][0].text) === "Onshore Crewing Department");
     if (!onshore) missing.push("the onshore block");
     else {
@@ -193,8 +155,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback", "trip"]) 
   if (missing.length) short.push(`${kind}: ${missing.join(" ")}`);
 }
 
-/* A missing slot would fill blank in silence, so nothing is written at all:
-   the map already on disk is the one that still works. */
 if (short.length) {
   console.error(`\nNOTHING WRITTEN — ${short.length} form(s) are short of anchors:`);
   for (const line of short) console.error(`  ${line}`);

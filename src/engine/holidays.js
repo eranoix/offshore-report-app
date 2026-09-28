@@ -1,15 +1,3 @@
-/**
- * Public holidays computed from rules rather than listed dates, so they never go
- * stale. Rule shapes:
- *
- *   { on: "01-01" }                    a fixed day
- *   { easter: -47 }                    so many days from Easter Sunday
- *   { month: 8, weekday: 1, nth: -1 }  the last Monday in August
- *
- * Days that are not statutory but on which nobody works carry `observed: true`.
- */
-
-/** Easter Sunday, anonymous Gregorian. Whole numbers, no dates, no zone. */
 export function easterDay(year) {
   const a = year % 19;
   const b = Math.floor(year / 100);
@@ -30,7 +18,6 @@ export function easterDay(year) {
 
 const iso = (day) => new Date(day * 864e5).toISOString().slice(0, 10);
 
-/** The nth weekday of a month, or the last one when nth is -1. */
 function nthWeekday(year, month, weekday, nth) {
   if (nth < 0) {
     const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -43,16 +30,10 @@ function nthWeekday(year, month, weekday, nth) {
   return first + forward + (nth - 1) * 7;
 }
 
-/* Ordered by name, because every list of options on this site is, and the
-   bench fails a select that is not. */
 export const COUNTRIES = [
   {
     code: "BR",
     name: "Brazil",
-    /* Under their official Brazilian names: New Year's Day, Carnival (two
-       days), Good Friday, Tiradentes Day, Labour Day, Corpus Christi,
-       Independence Day, Our Lady of Aparecida, All Souls' Day, Republic Day,
-       Black Consciousness Day and Christmas. */
     rules: [
       { on: "01-01", what: "Confraternização Universal" },
       { easter: -48, what: "Carnaval", observed: true },
@@ -118,7 +99,6 @@ export const COUNTRIES = [
 
 const byCode = new Map(COUNTRIES.map((c) => [c.code, c]));
 
-/** What a country keeps in one year. Pure: same answer every time. */
 export function holidaysIn(code, year) {
   const country = byCode.get(code) || byCode.get("BR");
   const easter = easterDay(year);

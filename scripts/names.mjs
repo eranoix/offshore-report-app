@@ -1,4 +1,3 @@
-/* Names a module uses but never declares, imports, or gets from the platform. */
 import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import * as acorn from "acorn";
@@ -8,12 +7,10 @@ const files = execSync("find src api scripts -type f \\( -name '*.js' -o -name '
   .toString().trim().split("\n").sort();
 
 const GLOBALS = new Set(["window","document","console","fetch","URL","URLSearchParams","Math","JSON","Object","Array","String","Number","Boolean","Date","Promise","Set","Map","WeakMap","RegExp","Error","TypeError","RangeError","localStorage","sessionStorage","caches","location","navigator","setTimeout","clearTimeout","Blob","CompressionStream","DecompressionStream","setInterval","clearInterval","requestAnimationFrame","cancelAnimationFrame","atob","btoa","crypto","Uint8Array","ArrayBuffer","Buffer","process","TextEncoder","TextDecoder","FormData","File","FileReader","Intl","Symbol","BigInt","Infinity","NaN","undefined","globalThis","structuredClone","AbortController","AbortSignal","Response","Request","Headers","WebSocket","Image","Event","CustomEvent","MutationObserver","ResizeObserver","IntersectionObserver","getComputedStyle","print","alert","confirm","history","HTMLElement","Node","queueMicrotask","performance","module","require","exports","__dirname","__filename","DOMParser","arguments","parseFloat","parseInt","isNaN","isFinite","encodeURIComponent",
-  /* A service worker has no window: it is handed `self`, and through it the
-     clients it controls and the caches it keeps. */
   "self","clients","skipWaiting","importScripts","ServiceWorkerGlobalScope",
   "decodeURIComponent","encodeURI","decodeURI","escape","unescape","prompt","Text","Range",
-  /* injected by the build (see vite.config.js) */ "__OFFLINE__",
-  /* the JSX transform writes calls to this itself */ "React"]);
+   "__OFFLINE__",
+   "React"]);
 
 function walk(node, visit, parent = null) {
   if (!node || typeof node.type !== "string") return;
@@ -29,12 +26,6 @@ function walk(node, visit, parent = null) {
 const names = (pattern, into) => walk(pattern, (n) => { if (n.type === "Identifier") into.add(n.name); });
 
 
-/* Used before it exists.
-   A `const` is not readable above the line that declares it, and the error
-   only shows when the page renders — as a blank screen. This finds the shape:
-   a name read in a block, outside any nested function, above its own
-   declaration in that same block. Inside a nested function it is fine: that
-   code runs later, when the name is there. */
 function tooEarly(ast) {
   const found = [];
   const blocks = [];
@@ -53,7 +44,6 @@ function tooEarly(ast) {
     });
     if (!declaredAt.size) continue;
     (block.body || []).forEach((stmt) => {
-      /* Only statements above the declaration can be too early. */
       walk(stmt, (n, parent) => {
         if (n.type !== "Identifier" || !parent) return;
         if (parent.type === "MemberExpression" && parent.property === n && !parent.computed) return;
@@ -61,7 +51,6 @@ function tooEarly(ast) {
         if (parent.type === "VariableDeclarator" && parent.id === n) return;
         const at = declaredAt.get(n.name);
         if (at === undefined || n.start >= at) return;
-        /* A reference inside a nested function runs later: not too early. */
         let nested = false;
         walk(stmt, (m) => {
           if (!/Function(Declaration|Expression)|ArrowFunctionExpression/.test(m.type)) return;
@@ -81,8 +70,6 @@ for (const file of files) {
   try {
     code = transformSync(raw, { loader: file.endsWith(".jsx") ? "jsx" : "js", format: "esm" }).code;
   } catch (e) {
-    /* A file that cannot be read has not been checked. Skipping it quietly is
-       how a broken file walks past its own guard. */
     bad += 1;
     console.log(`FAIL ${file} will not compile: ${e.message.split("\n")[0]}`);
     continue;
@@ -115,7 +102,6 @@ for (const file of files) {
     if (/^Import(Specifier|DefaultSpecifier|NamespaceSpecifier)$/.test(parent.type)) return;
     if (parent.type === "ExportSpecifier") return;
     if (parent.type === "LabeledStatement" || parent.type === "BreakStatement" || parent.type === "ContinueStatement") return;
-    /* `import.meta` is one token to the language, not a variable named meta. */
     if (parent.type === "MetaProperty") return;
     used.add(n.name);
   });

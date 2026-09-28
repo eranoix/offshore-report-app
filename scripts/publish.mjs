@@ -1,12 +1,3 @@
-/**
- * Rewords a form, publishes it, checks the panel still fills it (places are named
- * by paragraph, not by printed label), then restores the company's own in one step.
- *
- * Publishes through the store, not the site: publishing is admin-only and the test
- * account deliberately is not one (that refusal is checked in scripts/forms.mjs).
- *
- *   OFFSHORE_REPORT_EMAIL=... OFFSHORE_REPORT_PASSWORD=... node scripts/publish.mjs
- */
 import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -51,7 +42,6 @@ const put = async (path, bytes) => {
   if (!res.ok) throw new Error(`storage ${res.status}`);
 };
 
-/* The engine, with the templates read off disk. */
 const bundle = "/tmp/publish-docx.mjs";
 await build({
   entryPoints: [join(ROOT, "src/engine/docx.js")], bundle: true, format: "esm", outfile: bundle,
@@ -78,8 +68,6 @@ const label = lines.find((l) => l.slot === "signer");
 const { bytes: edited, touched } = reword(original, { [label.id]: "SIGNED OFF BY:" });
 say(touched === 1, "a label is reworded", `"${label.text}" becomes "SIGNED OFF BY:"`);
 
-/* Published, the way the page publishes: new version, anchors and map carried
-   with it, then pointed at. */
 const was = (await rest(`offshore_report_templates_live?kind=eq.${KIND}&select=offshore_report_templates(version)`))[0].offshore_report_templates.version;
 const top = (await rest(`offshore_report_templates?kind=eq.${KIND}&select=version&order=version.desc&limit=1`))[0].version;
 const version = top + 1;
@@ -103,7 +91,6 @@ try {
   const served = Buffer.from(await got.arrayBuffer());
   say(served.equals(Buffer.from(edited)), "and hands out the reworded form", `${(served.length / 1024).toFixed(0)}KB`);
 
-  /* And the point of all of it: filled in, the value still lands. */
   serve = served;
   const { fillForm } = await import(`${bundle}?published=${Date.now()}`);
   const filled = await fillForm(KIND, { ref: "WT01", candidate: "Zebediah Quicksilver",
@@ -125,7 +112,6 @@ try {
   say(page.includes("Ophelia Wrenfield"), "and the name is still written on its line", "Ophelia Wrenfield");
   say(page.includes("Zebediah Quicksilver") && page.includes("Sub Engineer"), "and so is everything else");
 } finally {
-  /* Back to the company's own, which is the whole reason version 0 is kept. */
   const [zero] = await rest(`offshore_report_templates?kind=eq.${KIND}&version=eq.0&select=id`);
   await rest("offshore_report_templates_live?on_conflict=kind", { method: "POST", prefer: "resolution=merge-duplicates",
     body: { kind: KIND, template_id: zero.id, updated_at: new Date().toISOString(), updated_by: "bench" } });

@@ -1,8 +1,3 @@
-/**
- * Renders the filled .docx with an engine that reads Word, so the page matches
- * Word's own layout (a JavaScript reader only approximates it). The engine key
- * stays server-side.
- */
 import { requireSession } from "./_supabase.js";
 import { ask, engineReady } from "./_engine.js";
 import { bytesOf, draftOf, extOf, holdDraft, isSheet, keep, live, manifest, typeOf, versions } from "./_templates.js";
@@ -12,15 +7,8 @@ export const config = { api: { bodyParser: false } };
 
 const LIMIT = 8 * 1024 * 1024;
 
-/**
- * The document server handing a form back. It autosaves on its own schedule,
- * so the bytes are kept as a draft only; publishing stays a guarded step.
- * Statuses 2 and 6 carry a saved file; the rest only need an acknowledgement.
- */
 async function saved(req, kind) {
   const body = JSON.parse((await raw(req, LIMIT))?.toString() || "{}");
-  /* Signed by the document server with the key only it and this have. Without
-     checking it, anyone who learns the address of this route replaces a form. */
   const token = body.token || String(req.headers.authorization || "").replace(/^Bearer /, "");
   const said = editorSays(token);
   if (!said) return { error: 1, message: "that was not signed by the document server" };
@@ -50,9 +38,6 @@ async function raw(req, limit) {
 }
 
 export default async function handler(req, res) {
-  /* The document server's own calls carry no session, only an edge-checked
-     ticket for one form and one job, so they are answered before the session
-     check, which would refuse them. */
   const asked = String(req.query?.t || "");
   if (asked === "doc" || asked === "saved") {
     const said = ticketSays(req.query?.tk);
@@ -67,8 +52,6 @@ export default async function handler(req, res) {
       }
       return res.status(200).json(await saved(req, said.kind));
     } catch (e) {
-      /* The document server reads this answer and shows the person a message.
-         It only understands its own shape, so even a failure speaks it. */
       return res.status(200).json({ error: 1, message: String(e.message).slice(0, 120) });
     }
   }
@@ -76,8 +59,6 @@ export default async function handler(req, res) {
   const who = requireSession(req, res);
   if (!who) return;
 
-  /* The forms share this handler because the plan's twelve functions are all
-     used. Everything about them is behind `t`; without it this is a render. */
   const t = String(req.query?.t || "");
   if (t) {
     try {
@@ -88,14 +69,10 @@ export default async function handler(req, res) {
         const got = await bytesOf(req.query.kind, req.query.v);
         if (!got) return res.status(404).json({ error: "no such form" });
         res.setHeader("content-type", typeOf(req.query.kind));
-        /* The bytes are the same for everyone and change only when a version
-           does, and the name carries what they are. */
         res.setHeader("cache-control", "private, max-age=3600");
         res.setHeader("etag", `"${got.sha256}"`);
         return res.status(200).send(got.bytes);
       }
-      /* Where the lines and boxes land on an unpublished form, for a preview.
-         The labels come off the form being asked about, not a list in code. */
       if (req.method === "POST" && t === "map") {
         if (!engineReady()) return res.status(500).json({ error: "the server cannot draw documents yet" });
         const bytes = await raw(req, LIMIT);
@@ -130,8 +107,6 @@ export default async function handler(req, res) {
       if (req.method === "PATCH" && t === "live")
         return res.status(200).json(await live(who, req.query.kind, req.query.v));
 
-      /* Editor config for the document server, signed: without a signature it
-         opens and saves whatever anybody asks, and its address is public. */
       if (req.method === "GET" && t === "editor") {
         const kind = String(req.query.kind || "");
         const at = String(process.env.ONLYOFFICE_URL || "");
@@ -140,15 +115,9 @@ export default async function handler(req, res) {
         const now = got?.[kind];
         if (!now) return res.status(404).json({ error: "no such form" });
         const site = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
-        /* The editor type is read from the kind, never assumed: the document
-           server opens an .xlsx given "word" as a corrupt file. It maps `cell`
-           to xlsx and refuses types outside word/cell/slide/pdf/diagram. */
         const config = {
           document: {
             fileType: extOf(kind),
-            /* The key is what the document server caches a session under. It
-               carries the version, so publishing a new one is a new document
-               rather than the old one served out of its cache. */
             key: `${kind}-${now.version}-${String(now.sha256 || "").slice(0, 12)}`,
             title: `${kind}.${extOf(kind)}`,
             url: `${site}/api/render?t=doc&tk=${encodeURIComponent(ticketFor(kind, "doc", who.email))}`,
@@ -165,7 +134,6 @@ export default async function handler(req, res) {
               forcesave: true,
               compactHeader: false,
               help: false,
-              /* Disable the editor's first-visit tour. */
               features: { featuresTips: false },
               featuresTips: false,
               hideNotes: true,
@@ -173,17 +141,12 @@ export default async function handler(req, res) {
             },
           },
         };
-        /* Checks the site's own leg to the document server. The browser's leg
-           can fail separately (e.g. TLS-inspecting networks), so this tells
-           "down on our side" from "blocked on yours". */
         const up = await fetch(`${at}/healthcheck`, { signal: AbortSignal.timeout(4000) })
           .then((r) => r.ok)
           .catch(() => false);
         return res.status(200).json({ at, up, config, token: signedForEditor(config) });
       }
 
-      /* Asks the document server to hand the file back now instead of after
-         its own pause; it answers through the same callback. */
       if (req.method === "POST" && t === "now") {
         const at = String(process.env.ONLYOFFICE_URL || "");
         const kind = String(req.query.kind || "");
@@ -203,16 +166,12 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({ ...body, token: signedForEditor(body) }),
         }).then((r) => r.json()).catch((e) => ({ error: 9, message: e.message }));
-        /* 0 is saved, 4 is "nothing has changed since the last one" — both mean
-           what is kept is what is on screen. */
         const code = Number(said?.error ?? 9);
         if (code !== 0 && code !== 4)
           return res.status(502).json({ error: `the document server would not save it (${code})` });
         return res.status(200).json({ saved: code === 0 });
       }
 
-      /* The last editor draft, so what is published is what somebody saw and
-         the guard runs on these bytes first. */
       if (req.method === "GET" && t === "draft") {
         const got = await draftOf(req.query.kind);
         if (!got) return res.status(404).json({ error: "nothing has been edited yet" });
@@ -237,9 +196,6 @@ export default async function handler(req, res) {
   try {
     const out = await ask(bytes);
     if (out.status !== 200 || !String(out.type || "").includes("pdf")) {
-      /* A file that is not a document is the caller's mistake, not the
-         server's: answering 502 to it says the far end broke when nothing
-         did, and hides a real breakage among the noise. */
       const mine = out.status >= 400 && out.status < 500;
       return res.status(mine ? out.status : 502).json({
         error: mine ? "that is not a Word document" : `could not be drawn (${out.status})`,

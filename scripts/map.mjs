@@ -1,10 +1,3 @@
-/**
- * Asks the engine's `POST /map` where a form's blanks are and holds the answer to
- * the build-time map in `src/forms/blanks.js`. An edited form has no build to run,
- * so if the two disagree its fields would land where the printed form has none.
- *
- *   node scripts/map.mjs
- */
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +11,6 @@ if (!KEY) {
   process.exit(0);
 }
 
-/* The labels each form prints, which is how the service finds the lines. */
 const LINES = {
   witness: ["WITNESS", "POSITION & SITE", "NAME FOR WHOM TESTIMONY IS FOR", "RELATIONSHIP WITH CANDIDATE"],
   observation: ["ASSESSOR", "POSITION & SITE", "NAME OF CANDIDATE OBSERVED", "RELATIONSHIP WITH CANDIDATE"],
@@ -32,8 +24,6 @@ const say = (ok, label, got = "") => {
   if (!ok) fails.push(label);
 };
 
-/* A page is 842pt tall, so a thousandth of it is a third of a point: closer
-   than anything anybody could see, and loose enough for the arithmetic. */
 const CLOSE = 0.002;
 const near = (a, b) => Math.abs(a - b) <= CLOSE;
 

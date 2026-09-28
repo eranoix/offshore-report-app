@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The grounding check, against the real records. Two things must hold at once:
- * a marked job written up plainly is not flagged, and a fact nobody's records
- * show still is.
- *
- *   node scripts/grounded.mjs
- */
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
 import https from "node:https";
@@ -44,15 +37,12 @@ function upstream(system, user, { maxTokens = 900, temperature = 0 } = {}) {
   });
 }
 
-/* The real module, asked through the very door the page uses: ask() posts to
-   /api/ai, and here that door is answered by the upstream itself. */
 const bundle = "/tmp/grounded-ai.mjs";
 await build({
   entryPoints: [`${__REPO}/src/engine/ai.js`],
   bundle: true, format: "esm", outfile: bundle, platform: "node", logLevel: "error",
   define: { __OFFLINE__: "false" },
 });
-/* Node has a navigator of its own, and onLine is already true on it. */
 globalThis.fetch = async (url, opts = {}) => {
   if (String(url) !== "/api/ai") throw new Error(`unexpected call to ${url}`);
   if ((opts.method || "GET") !== "POST") return { ok: true, status: 204 };
@@ -64,8 +54,6 @@ globalThis.fetch = async (url, opts = {}) => {
 };
 const { unsupported } = await import(bundle);
 
-/* This person's own library, out of the store itself — the same function the
-   server calls, so what the check reads is what the page would have given it. */
 const TERMS = "witness | testimony | lars | launch | recovery | maintenance | rov | tms | dive | checks";
 const OWNER = process.env.OFFSHORE_REPORT_UID || "00000000-0000-4000-8000-000000000001";
 const rows = execFileSync("docker", ["exec", "supabase-db", "psql", "-U", "postgres", "-tAF", "\u0001", "-c",
@@ -89,8 +77,6 @@ const say = (ok, label, got = "") => {
 };
 
 const WHO = "Sam Rivera";
-/* What the panel put on the form. None of it is the writing's invention, and
-   none of it is the records' to confirm. */
 const GIVEN = {
   candidate: WHO,
   "candidate's discipline": "ROV Sub-Engineer",
@@ -105,7 +91,6 @@ const PLAIN = `${WHO} worked on the MV Northstar as ROV Sub-Engineer. I worked a
   `checks on the ROV and TMS before every launch, working through the card and signing off each item, and ` +
   `I saw him do it without being prompted. He also took his turn on launch and recovery, running the ` +
   `LARS through the launch, the dive and the recovery, and handling the tether on the way back in.`;
-/* One fact nobody's records show, in a sentence that reads like all the rest. */
 const LIE = `${PLAIN} On the last day he cut and fusion-spliced the fibre core on the Hydra-9 skid at ` +
   `4,150 metres off Newfoundland, and we logged a bend loss of 0.03 dB.`;
 
@@ -119,8 +104,6 @@ say(caught, "and a fact the records do not show is still caught",
   lied.length ? `“${String(lied.find((q) => /hydra|4,?150|newfoundland/i.test(String(q))) || lied[0]).slice(0, 90)}”`
     : "nothing flagged");
 
-/* A real observation report off the bench, in the panel's length and voice,
-   describing only the work marked on it: it must come back clean. */
 const REAL = `${WHO} worked on the MV Northstar as ROV Sub-Engineer. The campaign covered mid-water ` +
   `target location, DP beacon pick-up and deployment, survey and tooling component fitting, hydraulic ` +
   `equipment function testing, Tool Tech backpack fault finding, ROV and TMS launch and recovery, and ` +
@@ -144,8 +127,6 @@ He communicates effectively with the operational team throughout the shift. Info
   `reduces the risk of misunderstanding during critical phases of the operation.`;
 const real = await unsupported({
   text: REAL, passages, who: WHO, given: GIVEN,
-  /* The tasks he marked on this copy — which are the ones the opening names,
-     because the opening is written from them. */
   did: ["Mid-water target location", "DP beacon pick-up and deployment",
     "Survey and tooling component fitting", "Hydraulic equipment function testing",
     "Tool Tech backpack fault finding", "ROV and TMS launch and recovery",

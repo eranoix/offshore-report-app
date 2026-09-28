@@ -1,8 +1,3 @@
-/**
- * Sign in against Supabase, where accounts live. This endpoint only checks the
- * password with Supabase and then issues our own signed cookie, so no token
- * ever sits in the page.
- */
 import crypto from "node:crypto";
 
 const HOURS = 12;
@@ -40,8 +35,6 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: `could not reach the account server: ${e.message}` });
   }
 
-  // Different GoTrue versions answer with the user in different shapes; the
-  // access token always carries it, so read it from there.
   const claims = (() => {
     try {
       const body = answer.access_token.split(".")[1];

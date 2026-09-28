@@ -1,6 +1,3 @@
-/* The rail is overlaid, not inserted, so the page beside it never reflows when it grows
-   from 62px to 232px on hover or pin. */
-
 .site {
   display: grid;
   grid-template-columns: 62px 1fr;
@@ -127,8 +124,6 @@ svg.glyph { display: block; }
 }
 .sb-out:hover { background: var(--deck-2); color: var(--ink); }
 
-/* the slot the current page lives in — deliberately NOT called .page, which is
-   what one sheet of the form is called inside .sheet */
 .view { min-width: 0; overflow: hidden; display: flex; }
 .view > * { flex: 1; min-width: 0; }
 
@@ -322,8 +317,6 @@ svg.glyph { display: block; }
 .logo-lockup { display: flex; align-items: center; gap: 10px; }
 .sb-head .wordmark b { font-weight: 700; }
 
-/* Phones: touch screens have no hover, so below 760px the rail becomes a bottom tab bar
-   with its labels always visible. */
 @media (max-width: 760px) {
   .site { display: block; height: auto; }
   .sidebar {
@@ -479,7 +472,6 @@ svg.glyph { display: block; }
 .viewer .docx-paper .docx-wrapper { background: transparent; padding: 0; display: grid; gap: 16px; justify-items: center; }
 .viewer .docx-paper .docx { background: #fff; color: #111; box-shadow: 0 10px 30px -12px rgba(0,0,0,.7); }
 .viewer .docx-paper section.docx { min-height: auto; }
-/* Word's own page is white with its own margins; ours only adds the shadow. */
 .viewer .docx-paper .docx-wrapper > section.docx { margin-bottom: 0; }
 .viewer .look img { max-width: 100%; margin: auto; display: block; }
 .viewer .look iframe { width: 100%; height: 100%; border: 0; background: #fff; }
@@ -504,7 +496,6 @@ svg.glyph { display: block; }
 }
 
 
-/* Printing means the form and nothing else; otherwise the site rail prints as an extra page. */
 @media print {
   .sidebar { display: none !important; }
   .site { display: block; }
@@ -562,21 +553,16 @@ svg.glyph { display: block; }
   .account .pw .pair { grid-template-columns: 1fr; }
 }
 
-/* Why a document could not be drawn — said in the viewer, not swallowed. */
 .viewer .note.bad { color: var(--warn, #f0a25a); display: flex; align-items: center; gap: 10px; justify-content: center; }
 .viewer .note.bad button { padding: 4px 10px; font: inherit; }
 
 .viewer iframe.docx-paper { width: 100%; height: 100%; min-height: 60vh; border: 0; background: #fff; }
 
-/* Documents are read and painted rather than framed: the site answers X-Frame-Options: deny,
-   which blocked its own iframe too. Painting also behaves on a phone. */
 .pages { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .pages-roll {
   flex: 1; min-height: 0; overflow: auto; padding: 14px;
   display: flex; flex-direction: column; align-items: center; gap: 14px;
 }
-/* The sheet is a box the size of the printed page; the canvas fills it, and
-   anything placed on top is placed as a fraction of the page. */
 .pages-roll .leaf {
   position: relative; flex: none; background: #fff; border-radius: 2px;
   box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .7);
@@ -596,8 +582,6 @@ svg.glyph { display: block; }
 .viewer .look.paper { background: #39404f; display: block; padding: 0; }
 .viewer .look .pages .note { margin: auto; padding: 24px; text-align: center; color: var(--ink-2); }
 
-/* Each of the five states has a colour but never only a colour: its mark and word go with
-   it everywhere, because the sheet prints with backgrounds off. */
 .rota {
   --st-out: #38BDF8;
   --st-hotel: #FBBF24;
@@ -635,8 +619,6 @@ svg.glyph { display: block; }
 .rota-seg button i { font-style: normal; font-size: 12px; line-height: 1; }
 .rota-seg button[aria-pressed="true"] { color: #0B1220; font-weight: 600; }
 .rota-seg button:hover:not([aria-pressed="true"]) { color: var(--ink-2); }
-/* The pay basis has no sliding bar: two indicators racing each other in one
-   header reads as one control that cannot make up its mind. */
 .rota-seg.is-plain button[aria-pressed="true"] {
   background: var(--accent-dim); color: var(--ink); font-weight: 600;
 }
@@ -670,7 +652,6 @@ svg.glyph { display: block; }
 }
 .rota-btn.is-key:hover { filter: brightness(1.08); }
 
-/* The message floats at the foot of the screen like a toast, so it never pushes the board down. */
 .rota-said {
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 80;
   display: flex; align-items: center; gap: 10px; margin: 0; max-width: min(640px, 92vw);
@@ -714,28 +695,17 @@ svg.glyph { display: block; }
   margin-left: auto; font-size: 10.5px; color: var(--ink-3); padding: 2px 9px;
   border: 1px solid var(--rule-2); border-radius: 999px; font-variant-numeric: tabular-nums;
 }
-/* Nothing in a quadrant scrolls: one block per quadrant takes the leftover height and the
-   rest keep their size, so the smallest usable window is a measurement, not a scrollbar. */
 .rota-body {
   flex: 1; min-height: 0; overflow: hidden;
   padding: 12px 14px 13px;
   display: flex; flex-direction: column; gap: 9px;
 }
-/* Two blocks that will not fit under each other go beside each other. The
-   figures keep the full width across the top; what is left is split. Below
-   1180px of quadrant there is no width to split, and they stack again. */
 .rota-body.is-wide {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  /* Both rows `auto`, never `1fr`: a capped row lets its contents spill without the panel's
-     height changing, so the overflow would never be measured. */
   grid-template-rows: auto auto; align-content: start; gap: 10px 16px;
 }
 .rota-body.is-wide > :first-child { grid-column: 1 / -1; }
-/* Each half stacks inside its own column, and neither may push the panel
-   taller than the panel is. */
 .rota-half { display: flex; flex-direction: column; gap: 7px; min-height: 0; }
-/* Nothing inside a half is allowed to be squeezed below what it is: squeezed,
-   it overflows its own box in silence and paints over its neighbour. */
 .rota-half > * { flex: none; }
 .rota-why { font-size: 10.5px; }
 .rota-why > summary {
@@ -746,14 +716,11 @@ svg.glyph { display: block; }
 .rota-why > summary::before { content: "▸ "; }
 .rota-why[open] > summary::before { content: "▾ "; }
 .rota-why > summary:hover { color: var(--ink); }
-/* On paper nothing folds: a printed sheet cannot be opened. */
 @media print { .rota-why > summary { display: none; } .rota-why > * { display: block !important; } }
 @media (max-width: 1180px) {
   .rota-body.is-wide { display: flex; flex-direction: column; }
 }
 
-/* Event bars: one per event per week on the day grid, spanning the columns they cover;
-   rounded at a real start or end, square where they carry on. */
 .rota-bar {
   grid-row: auto; align-self: start; z-index: 2; position: relative;
   margin-top: calc(19px + var(--lane) * 15px); margin-inline: 4px;
@@ -767,8 +734,6 @@ svg.glyph { display: block; }
 }
 .rota-bar.is-head { border-top-left-radius: 7px; border-bottom-left-radius: 7px; }
 .rota-bar.is-tail { border-top-right-radius: 7px; border-bottom-right-radius: 7px; }
-/* A piece that carries on reaches the edge of its column, so the two pieces
-   on either side of a week's end line up like one bar broken by the row. */
 .rota-bar:not(.is-head) { margin-left: 0; }
 .rota-bar:not(.is-tail) { margin-right: 0; }
 .rota-bar span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -777,11 +742,7 @@ svg.glyph { display: block; }
 .rota-bar i.is-on { margin-left: auto; }
 .rota-bar:hover { background: color-mix(in srgb, var(--ink) 45%, var(--deck-2)); }
 .rota-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* A told stretch is drawn a touch quieter than an event: it is the day's own
-   state, already in the day's colour, and the bar is what joins the days. */
 .rota-bar.is-state { font-weight: 500; }
-/* A bar that can be moved says so: a grab hand over its body and a resize
-   grip at each real end — the eight pixels the page takes as "this end". */
 .rota-bar.is-movable { cursor: grab; touch-action: none; }
 .rota-bar.is-movable.is-head::before,
 .rota-bar.is-movable.is-tail::after {
@@ -793,14 +754,11 @@ svg.glyph { display: block; }
 .rota-bar.is-movable:hover.is-tail::after {
   background: linear-gradient(90deg, transparent 3px, color-mix(in srgb, var(--ink) 80%, transparent) 3px 5px, transparent 5px);
 }
-/* Where it will land, while it is being dragged: lifted, and drawn over
-   everything else so it is never lost behind another bar. */
 .rota-bar.is-moving {
   cursor: grabbing; z-index: 5;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .5), inset 0 0 0 1.5px var(--ink);
 }
 body:has(.rota-bar.is-moving) { cursor: grabbing; }
-/* Bars that did not fit in the day, counted rather than dropped. */
 .rota-more {
   position: absolute; left: 26px; top: 5px; padding: 0 4px; border-radius: 6px;
   font-size: 9px; font-weight: 700; line-height: 13px;
@@ -808,16 +766,12 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 }
 @media print { .rota-bar, .rota-more { display: none; } }
 
-/* The day is a button: its card opens where the day is, the way a calendar opens a day. */
 .rota-day {
   cursor: pointer; font: inherit; text-align: left; -webkit-appearance: none; appearance: none;
-  /* A button centres its content; the date number belongs at the top, as in a calendar. */
   display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start;
 }
 .rota-day:hover { border-color: var(--accent-dim); }
 .rota-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* A day he has told the site about is not a projection, and the calendar says
-   so quietly rather than leaving him to remember which ones he changed. */
 .rota-day.is-said { box-shadow: inset 2px 0 0 var(--accent-lit); }
 .rota-day.is-picked { border-color: var(--accent); }
 
@@ -856,8 +810,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-chip i { font-style: normal; font-size: 12px; }
 .rota-chip:hover { background: var(--deck-3); color: var(--ink); }
 .rota-chip.on { background: var(--deck-3); font-weight: 600; }
-/* Five states in a grid of two leaves one alone on the last row; it takes the
-   width rather than sitting half-empty beside nothing. */
 .rota-chip:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .rota-card-marks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .rota-card-marks li {
@@ -870,21 +822,15 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-range span {
   font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
 }
-/* Said with enough weight to beat the site's base rule for every input,
-   which is (0,3,1) and would otherwise decide the size and the padding. */
 .rota-card .rota-range input[type="date"] {
   min-width: 0; width: 100%; padding: 5px 7px; border: 1px solid var(--rule-2); border-radius: 8px;
   background: var(--deck); color: var(--ink); font-size: 11.5px; color-scheme: dark;
 }
-/* A phone keeps 16px inputs (smaller and iOS zooms the page on focus), and at 16px two
-   dates do not fit side by side in the card, so they stack. */
 @media (hover: none) {
   .rota-range { grid-template-columns: 1fr; }
   .rota-card .rota-range input[type="date"] { font-size: 16px; padding: 7px 9px; }
 }
 .rota-range input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* A saved date is opened like an event: click it to change its start, end
-   or name. It looks like something that can be pressed. */
 .rota-mark-open {
   flex: 1; min-width: 0; padding: 0; border: 0; background: none; text-align: left;
   font: inherit; font-size: 11.5px; color: var(--ink); cursor: pointer;
@@ -906,10 +852,7 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   background: var(--deck-2); color: var(--ink); font: inherit; font-size: 11px;
 }
 .rota-edit-row .rota-add { margin-left: auto; }
-/* Dragging across days picks them, it does not select their text. */
 .rota-grid { user-select: none; -webkit-user-select: none; }
-/* Only where there is a mouse: on a phone a finger on the calendar has to
-   scroll the page, and taking the gesture away for dragging would pin it. */
 @media (hover: hover) and (pointer: fine) { .rota-grid { touch-action: none; } }
 .rota-card-add { display: grid; grid-template-columns: 1fr auto; gap: 4px; margin-top: 2px; }
 .rota-card-add input { grid-column: 1 / -1; }
@@ -929,9 +872,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   text-align: center; font-size: 9.5px; letter-spacing: .09em;
   text-transform: uppercase; color: var(--ink-3);
 }
-/* The weeks share whatever height the quadrant has. A month of six rows is
-   shorter in the cell than one of five, which is right: the month is the
-   thing that must be whole, not the cell. */
 .rota-grid {
   position: relative; flex: 1; min-height: 0;
   display: grid; grid-template-columns: repeat(7, 1fr);
@@ -942,7 +882,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   padding: 4px 6px; border-radius: 9px;
   border: 1px solid transparent; transition: transform .12s, border-color .12s;
 }
-/* The day's events go first when cells get short, and whole or not at all, never half a line. */
 @container (max-height: 44px) { .rota-ev { display: none; } }
 .rota-day:hover { transform: translateY(-1.5px); border-color: var(--rule); }
 .rota-day.is-dim { opacity: .28; }
@@ -952,8 +891,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   background: var(--accent); color: #0B1220; font-weight: 700;
 }
 .rota-e { position: absolute; right: 5px; top: 4px; font-size: 11px; }
-/* The word for the state is there for a screen reader and for the legend; on
-   the tile the mark carries it, because five words in a 58px box is a wall. */
 .rota-word {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip-path: inset(50%); white-space: nowrap;
@@ -974,7 +911,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   color: var(--accent-lit); font-size: 11.5px; font-weight: 600; cursor: pointer; letter-spacing: .02em;
 }
 .rota-ym > button:hover { color: var(--ink); }
-/* Twelve months on one screen: squares take the height there is, not the width they would like. */
 .rota-ym { display: flex; flex-direction: column; min-height: 0; }
 .rota-ym-grid {
   flex: 1; min-height: 0; display: grid;
@@ -1001,8 +937,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 
 .rota-stack { flex: none; display: flex; border-radius: 5px; overflow: hidden; }
 .rota-stack i { display: block; transition: flex .3s; }
-/* `flex: none`, not `1 1 auto`: a grid allowed to shrink below its content paints its rows
-   over what is under them while reporting no overflow. The panel is made tighter instead. */
 .rota-rows { flex: none; display: grid; gap: 1px; }
 .rota-row {
   display: grid; grid-template-columns: 18px 1fr 44px 46px; gap: 9px; align-items: center;
@@ -1072,7 +1006,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-table { width: 100%; border-collapse: collapse; }
 .rota-table { flex: none; }
 .rota-halves { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
-/* The year's own row, under both halves and in the same columns as them. */
 .rota-sum { border-top: 1px solid var(--rule-2); }
 @media (max-width: 1180px) { .rota-halves { grid-template-columns: minmax(0, 1fr); } }
 .rota-table th {
@@ -1092,9 +1025,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-table tr.is-hit td:first-child { color: var(--ink); font-weight: 600; }
 .rota-table tr.is-total td { border-top: 1.5px solid var(--rule); font-weight: 700; color: var(--ink); }
 
-/* The one thing on this page somebody could lose fourteen years over: the
-   margin is in half-days and the days he may stay is twice it. They are one
-   block, side by side, and neither is ever shown without the other. */
 .rota-margin {
   display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center;
   margin-top: 15px; padding: 13px 15px; border-radius: 12px;
@@ -1189,11 +1119,7 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rot-standing.is-gone { color: #ff9a9a; border-color: #ff9a9a; }
 .rot-standing.is-ok { color: var(--ok); border-color: var(--rule-2); }
 
-/* Short or narrow windows: padding and type give way before any figure does, by measured
-   values. Narrow costs height too, because every paragraph wraps to more lines. */
 @media (max-height: 940px), (max-width: 1520px) {
-  /* The bottom row does not get more height than the top: its quadrants share it, and
-     that broke the count (a fixed list of rows) to feed the claim. */
   .rota-body { padding: 9px 12px 10px; gap: 6px; }
   .rota-body.is-wide { gap: 8px 14px; }
   .rota-row { padding: 3px 7px; }
@@ -1205,13 +1131,8 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rota-table td { padding: 2px 6px; }
   .rota-table th { padding: 3px 6px; }
   .rota-note { font-size: 10.5px; line-height: 1.34; }
-  /* The claim's explanation is the hardest prose to fit; this size is the measured fit. */
   .rota-half .rota-note { font-size: 10px; line-height: 1.32; }
-  /* The margin block's big number is a `b`, not `.rota-big`: they look the same, and a
-     rule aimed at the wrong one silently does nothing. */
   .rota-kpi > div { padding: 5px 9px; }
-  /* In the cramped claim panel the gloss under each figure goes first; the rows and the
-     margin block never give up room. */
   .rota-half ~ .rota-kpi .rota-s, .rota-body.is-wide:has(.rota-half) .rota-kpi .rota-s { display: none; }
   .rota-kpi .rota-big { font-size: 18px; }
   .rota-kpi .rota-s { margin-top: 1px; }
@@ -1230,9 +1151,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rota-legend { gap: 7px 11px; font-size: 10px; }
   .rota-run { padding: 7px 0; }
 }
-/* Four quadrants always, never a scrollbar in one. Narrow: buttons keep their icons and
-   drop their words (the title still carries them), since wrapping to a second line would
-   cost every panel a row of figures. */
 @media (max-width: 1460px) {
   .rota-head { gap: 7px; }
 }
@@ -1260,9 +1178,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rota-d { font-size: 10.5px; }
 }
 
-/* The shortest desks this is used at. Still four quadrants: what gives is
-   the last of the padding and the glosses under the figures, never a panel
-   and never the board. */
 @media (max-height: 720px) {
   .rota-head { padding: 7px 12px; }
   .rota-board { padding: 8px 12px 10px; gap: 8px; }
@@ -1288,23 +1203,16 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 @media (max-width: 760px) {
   .rota-head { padding: 10px 12px; gap: 8px; }
   .rota-board { padding: 10px 12px 74px; }
-  /* On a phone the page scrolls and the panels do not. A panel with a scroll
-     bar of its own inside a page that also scrolls is two thumbs fighting. */
   .rota-q { max-height: none; }
   .rota-body { overflow: visible; display: block; }
 }
 
-/* Print-only sheet. It borrows `.sheet` for the measured page geometry (see the note above
-   @page in app.css); the shared @page rule is left alone because the CAAP forms print as
-   full-page images. States are told apart by word and mark, never by fill. */
 .rota .for-paper { display: none; }
 @media print {
   .rota { display: block; height: auto; overflow: visible; background: none; }
   .rota > .rota-head, .rota .rota-board, .rota .rota-said { display: none !important; }
   .rota .rota-plan, .rota .rota-plan[open] { display: none !important; }
   .rota .for-paper { display: block; }
-  /* No fixed height and nothing hidden: an overflowing sheet spills a blank page, which the
-     bench catches; clipping it would silently drop rows. */
   .rota .sheet { min-height: 0; }
   .rot-head {
     display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
@@ -1313,8 +1221,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rot-head b { font-size: 13pt; }
   .rot-head span { font-size: 8.4pt; color: #444; }
   .rot-head span:last-child { margin-left: auto; }
-  /* Overrides `.sheet td, .sheet th` in form.css with louder selectors instead of loosening
-     that rule: the forms are not this page's to change. */
   .rota .rot-paper { width: 100%; border-collapse: collapse; }
   .rota .rot-paper th {
     width: 16pt; border: 0; text-align: left; vertical-align: top;
@@ -1328,22 +1234,14 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rota .rot-p-when b { display: inline-block; min-width: 40pt; font-weight: 700; }
   .rota .rot-p-marks { font-size: 8pt; color: #333; }
   .rota .rot-p-marks i { font-style: italic; }
-  /* The year's figures. Each state is named in words beside its mark, so the
-     sheet reads the same out of a photocopier as it does on a screen. */
   .rota .rot-figures th, .rota .rot-months th { font-size: 10pt; }
   .rota .rot-figures td, .rota .rot-months td { font-size: 10pt; padding: 5pt 8pt 5pt 0; }
   .rota .rot-figures th { width: 20pt; }
   .rota .rot-figures td:first-child { width: 58%; }
-  /* Fixed, so that a heading wider than its figures cannot pull a column off
-     the one under it — the header and its numbers have to line up or the eye
-     reads a month against the wrong count. */
   .rota .rot-months { margin-top: 12pt; table-layout: fixed; }
   .rota .rot-months th:first-child { width: 28%; }
   .rota .rot-months th { width: auto; border-top: .5pt solid #BBB; padding: 5pt 8pt 5pt 0; }
   .rota .rot-months tr:first-child th { border-top: 0; font-size: 8.5pt; color: #444; }
-  /* Said through `.rot-paper` as well, or `.sheet td { text-align: left }` in
-     form.css out-argues it and the figures sit under the wrong edge of their
-     own headings — which the bench cannot see, because ink is ink. */
   .rota .rot-paper td.rot-n, .rota .rot-paper th.rot-n {
     width: 12%; text-align: right; font-variant-numeric: tabular-nums;
   }
@@ -1509,13 +1407,7 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 
 .rota-pager.is-top { justify-content: flex-end; margin: -4px 0 2px; }
 
-/* The header keeps one line and every control in it keeps its own words on
-   one line. What gives, when the countdown needs the room, is the period
-   written beside it — the calendar's own heading already says the month. */
 .rota-head .rota-seg button { white-space: nowrap; }
-/* Measured: with the countdown and the QR button in it, the header's words
-   fit on one line from 1760px up; below that the buttons keep their icons,
-   and below 1600 the period beside the countdown goes too. */
 
 .rota-half .rota-link, .rota-plain .rota-link { font-size: 11px; }
 
@@ -1562,14 +1454,10 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
   .rot-ydays span:empty { border-color: transparent; }
   .rot-ydays small { position: absolute; left: 0.5mm; top: 0.2mm; font-size: 5pt; color: #333; }
   .rot-ydays em { position: absolute; right: 0.6mm; bottom: 0.2mm; font-style: normal; font-weight: 700; font-size: 8pt; }
-  /* Aboard is the thing the sheet is read for: a heavier box, not a colour. */
   .rot-ydays span.is-aboard { border: 0.45mm solid #000; }
   .rot-key { margin: 4mm 0 0; font-size: 7pt; }
 }
 
-/* The period and its one-line summary give way before anything else in the
-   header does: they shrink and end in an ellipsis rather than wrapping onto a
-   second line, which would take height from every panel. */
 .rota-head .rota-btn, .rota-head .rota-seg, .rota-head .rota-step, .rota-head .rota-count { flex: none; white-space: nowrap; }
 
 .rota-caret { font-style: normal; font-size: 9px; opacity: .7; margin-left: -1px; }
@@ -1592,9 +1480,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-note.is-bad { color: #FF9A9A; }
 .rota-bar.is-linked { font-style: italic; }
 
-/* Every button keeps a name at every width. What gives on a narrower screen
-   is the icon beside it, the longer of its two names, and the line under
-   "Rotation" — measured at 1273, 1366, 1440 and 1600. */
 .rota-btn .is-short { display: none; }
 @media (max-width: 1640px) {
   .rota-btn > i:first-child { display: none; }
@@ -1623,7 +1508,6 @@ body:has(.rota-bar.is-moving) { cursor: grabbing; }
 .rota-clear label.is-empty { opacity: .45; cursor: default; }
 .rota-clear li.is-wide { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--rule-2); }
 
-/* Every day looks the same: the rotation is drawn as its events, not as a colour on the day. */
 .rota .rota-day { background: color-mix(in srgb, var(--deck-2) 45%, transparent); }
 .rota .rota-day.is-now { background: color-mix(in srgb, var(--accent-lit) 22%, transparent); }
 .rota-empty { display: grid; gap: 10px; justify-items: start; padding: 6px 2px; }

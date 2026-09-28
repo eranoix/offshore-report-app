@@ -1,9 +1,3 @@
-/**
- * Reading a form's words, and changing one. Word splits a paragraph's text
- * across runs, so reading and writing work on the flattened paragraph.
- *
- *   node scripts/wording.mjs
- */
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,19 +18,15 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   const said = wordsOf(bytes, ANCHORS[kind]);
   say(said.length > 10, `${kind}: its words are readable`, `${said.length} lines`);
 
-  /* Every anchored slot shows up as one, so the page can say "this is where
-     the witness's name goes" instead of leaving it to be guessed. */
   const slots = Object.keys(ANCHORS[kind] || {});
   const shown = new Set(said.filter((x) => x.slot).map((x) => x.slot));
   say(slots.every((s) => shown.has(s)), `${kind}: and every place a value goes is marked as one`,
     [...shown].join(" ") || "none");
 
-  /* Word splits a label across runs; the reading must not. */
   const label = said.find((x) => x.slot === "signer");
   say(Boolean(label && /:/.test(label.text)), `${kind}: a label split across runs still reads whole`,
     label?.text.slice(0, 40) || "(not found)");
 
-  /* Changing one line changes that line and nothing else. */
   const target = said.find((x) => x.slot === "signer");
   const { bytes: after, touched } = reword(bytes, { [target.id]: "SIGNED OFF BY:" });
   say(touched === 1, `${kind}: one line changed is one line changed`, `${touched}`);
@@ -45,24 +35,17 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     now.find((x) => x.id === target.id)?.text || "");
   const moved = now.filter((x) => x.id !== target.id && x.text !== said.find((y) => y.id === x.id)?.text);
   say(moved.length === 0, `${kind}: and no other line moved`, moved.map((x) => x.text.slice(0, 20)).join(" · "));
-  /* The document is still a document: same parts, same count. */
   const was = Object.keys(unzipSync(bytes));
   const has = Object.keys(unzipSync(after));
   say(was.length === has.length && was.every((n) => has.includes(n)),
     `${kind}: and the file still carries every part it did`, `${has.length} parts`);
-  /* And the same number of paragraphs: nothing here adds or removes one, which
-     is what lets the anchors hold. */
   const count = (b) => (strFromU8(unzipSync(b)["word/document.xml"]).match(/<w:p[ >]/g) || []).length;
   say(count(bytes) === count(after), `${kind}: and the same paragraphs`, `${count(after)}`);
 }
 
-/* A form that came back from Word without a line a value goes on: the fill
- * finds places by paragraph id, so this must be caught before publishing.
- */
 {
   const bytes = new Uint8Array(readFileSync(join(FORMS, "witness.docx")));
   say(missingAnchors(bytes, ANCHORS.witness).length === 0, "an untouched form is missing nothing");
-  /* The paragraph the witness's name goes on, taken out the way Word would. */
   const zip = unzipSync(bytes);
   const xml = strFromU8(zip["word/document.xml"]);
   const id = ANCHORS.witness.signer;
@@ -75,10 +58,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   say(gone.length === 1 && gone[0] === "signer", "and one with a line deleted says which line", gone.join(" ") || "nothing");
 }
 
-/* An anchor on a deliberately EMPTY paragraph (every blank of a grid form)
- * must not be reported missing; `wordsOf` skips empty paragraphs, so the guard
- * cannot rely on it.
- */
 {
   const bytes = new Uint8Array(readFileSync(join(FORMS, "witness.docx")));
   const zip = unzipSync(bytes);
@@ -93,7 +72,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     "and the reading of its words passes them over, as it always has");
   say(missingAnchors(bytes, named).length === 0,
     "but a value that goes on an empty line is NOT called missing", missingAnchors(bytes, named).join(" "));
-  /* And it is still missing when it is actually gone. */
   const at = xml.indexOf(`w14:paraId="${hollow[0]}"`);
   const open = xml.lastIndexOf("<w:p ", at);
   const close = xml.indexOf("</w:p>", at) + 6;
@@ -102,12 +80,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     "and it IS missing once the line is taken out");
 }
 
-/* The guidance heading, and the sentence that merely points at it.
- *
- * The filled document is cut from the heading down, read case-insensitively.
- * Three CAAP forms also say "(please see reverse for guidance notes)" near the
- * top; reading that as the heading would cut the whole form away.
- */
 for (const kind of ["observation", "knowledge"]) {
   const bytes = new Uint8Array(readFileSync(join(FORMS, `${kind}.docx`)));
   const said = wordsOf(bytes, ANCHORS[kind]);
@@ -120,13 +92,10 @@ for (const kind of ["observation", "knowledge"]) {
     `${kind}: and the heading is`, heads.text.slice(0, 44));
 }
 
-/* A paragraph nobody named is left alone, and an unknown one is not invented. */
 const bytes = new Uint8Array(readFileSync(join(FORMS, "witness.docx")));
 const { touched } = reword(bytes, { DEADBEEF: "nowhere" });
 say(touched === 0, "a paragraph the form does not have changes nothing", String(touched));
 
-/* Adding and removing lines: removing a line a value goes on must be
-   refused, or the form goes out with it blank. */
 console.log("\nand a line can be added and taken out");
 
 for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
@@ -135,7 +104,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   const boxes = (xml) => (xml.match(/<w:pBdr>/g) || []).length;
   const bodyOf = (b) => strFromU8(unzipSync(b)["word/document.xml"]);
 
-  /* Somewhere safe to add: a line that carries nothing. */
   const plain = said.find((l) => !l.slot && !l.rule && !whyKeep(was, l.id, ANCHORS[kind]).length);
   const grown = addPara(was, plain.id, "A LINE THAT WAS NOT THERE");
   const after = wordsOf(grown.bytes, ANCHORS[kind]);
@@ -145,9 +113,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     `${kind}: and it says what it was given`);
   say(missingAnchors(grown.bytes, ANCHORS[kind]).length === 0,
     `${kind}: and no line a value goes on was lost`);
-  /* A cloned border would be counted as one more box to write a statement
-     into, which on the feedback form moves the candidate's own words into the
-     assessor's box. */
   say(boxes(bodyOf(grown.bytes)) === boxes(bodyOf(was)),
     `${kind}: and the boxes the statement goes in are untouched`,
     `${boxes(bodyOf(grown.bytes))}`);
@@ -155,7 +120,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   const now = new Map(after.map((l) => [l.id, l.text]));
   say(others.every((l) => now.get(l.id) === l.text), `${kind}: and no other line moved`);
 
-  /* Every line a value goes on refuses to be taken out, and says why. */
   const slots = Object.values(ANCHORS[kind]).flat();
   const kept = slots.map((id) => dropPara(was, id, ANCHORS[kind]));
   say(kept.every((k) => k.removed === 0 && k.held.some((h) => h.hard)),
@@ -164,13 +128,11 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     `${kind}: and each refusal says which line and why`,
     kept[0].held[0].why.slice(0, 44));
 
-  /* So do the boxes the statement is written into. */
   const body = bodyOf(was);
   const bordered = [...body.matchAll(/<w:p\b[^>]*w14:paraId="([0-9A-Fa-f]{8})"[^>]*>(?:(?!<\/w:p>)[\s\S])*?<w:pBdr>/g)].map((m) => m[1]);
   say(bordered.length > 0 && bordered.every((id) => dropPara(was, id, ANCHORS[kind]).removed === 0),
     `${kind}: nor can the box the statement is written into`, `${bordered.length} of them`);
 
-  /* And a line that carries nothing comes out cleanly. */
   const cut = dropPara(was, plain.id, ANCHORS[kind]);
   say(cut.removed === 1 && wordsOf(cut.bytes, ANCHORS[kind]).length === said.length - 1,
     `${kind}: a line that carries nothing comes out`, plain.text.slice(0, 34));
@@ -178,10 +140,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
     `${kind}: with every line a value goes on still there`);
 }
 
-/* The reference box of the witness form is a drawing, and a drawing keeps two
-   copies of the same paragraph under the same name. Writing by name always
-   lands on the first, so the two would quietly disagree. Nothing here touches
-   it. */
 {
   const was = new Uint8Array(readFileSync(join(FORMS, "witness.docx")));
   const held = whyKeep(was, "49B8709B", ANCHORS.witness);
@@ -190,7 +148,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   say(addPara(was, "49B8709B", "x").id === "", "and nothing can be added beside it");
 }
 
-/* A name nobody is using, every time. */
 {
   const zip = unzipSync(new Uint8Array(readFileSync(join(FORMS, "feedback.docx"))));
   const used = new Set();
@@ -208,8 +165,6 @@ for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
   say(clash === 0, "a new line's name is one no part of the file is using", `${made.size} drawn, ${used.size} taken`);
 }
 
-/* The drawing's cache signature must include the form version, not only the
-   values, or a newly published form keeps showing the old picture. */
 {
   const src = readFileSync(join(ROOT, "src", "components", "caap", "Paper.jsx"), "utf8");
   const from = src.indexOf("export const formSignature");

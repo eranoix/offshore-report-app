@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The upstream's tokens-per-minute limit is shared by every call the browser
- * sends, so a full minute must be discovered once, not by each concurrent call
- * separately spending its retries inside it.
- *
- *   node scripts/busy.mjs
- */
 import { build } from "esbuild";
 
 const bundle = "/tmp/busy-engine.mjs";
@@ -21,7 +14,6 @@ const say = (ok, label, got = "") => {
   if (!ok) fails.push(label);
 };
 
-/* The upstream: full for the first two seconds, then answering. */
 const sent = [];
 let full = true;
 setTimeout(() => { full = false; }, 2000);
@@ -43,8 +35,6 @@ let told = 0;
 onBusy(() => { told += 1; });
 
 const began = Date.now();
-/* Six calls at once, as the panel makes them: three documents in hand, each
-   checking and repairing what it wrote. */
 const out = await Promise.allSettled(Array.from({ length: 6 }, () =>
   ask("system", "user").catch((e) => { throw e; })));
 const refused = out.filter((r) => r.status === "rejected").length;
@@ -53,8 +43,6 @@ const first = sent.filter((t) => t - began < 500).length;
 say(refused === 6, "the first round is refused, because the minute really is full", `${refused} of 6`);
 say(told >= 1, "and the app is told once how long is left", `${told} time(s)`);
 
-/* Now they all go round again, as attempt() does. Nothing may be sent into
-   the minute that is known to be full. */
 sent.length = 0;
 const again = await Promise.allSettled(Array.from({ length: 6 }, () => ask("system", "user")));
 const answered = again.filter((r) => r.status === "fulfilled").length;

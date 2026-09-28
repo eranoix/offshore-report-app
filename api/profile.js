@@ -1,5 +1,3 @@
-/** The lists the app learns — vessels, supervisors, names — kept per account
- *  so a phone and a laptop show the same suggestions. */
 import { db, requireSession } from "./_supabase.js";
 
 const clean = (list) =>

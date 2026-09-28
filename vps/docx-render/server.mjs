@@ -1,7 +1,3 @@
-/**
- * Renders a Word document to PDF with an engine that reads Word, since a JavaScript reader never quite
- * lays it out as Word does. Reached only through the nginx on 9443, and only with the shared key.
- */
 import { createServer } from "node:http";
 import { wordsOf } from "./read.mjs";
 import { blanksOf, pagesOf } from "./map.mjs";
@@ -18,8 +14,6 @@ const KEY = process.env.DOCX_KEY || "";
 const LIMIT = 8 * 1024 * 1024;
 const SECONDS = 45;
 
-/* A .docx and an .xlsx are both zips, and every zip starts the same way. A file
-   that does not is not a document, whatever it claims to be. */
 const looksLikeDocx = (buf) =>
   buf.length > 4 && buf[0] === 0x50 && buf[1] === 0x4b && (buf[2] === 3 || buf[2] === 5 || buf[2] === 7);
 
@@ -29,13 +23,8 @@ const same = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-/* Building the engine's profile from nothing is most of the time a conversion
-   takes. One is made when the service starts and copied for each job: the
-   conversions still cannot meet, and none of them pays to build it. */
 const SEED = "/opt/docx-render/profile";
 
-/* The forms need the fonts the company's Word has: substitutes break lines elsewhere and change the page
-   count, so say so loudly at startup rather than draw a wrong document. */
 const NEEDED = ["Verdana", "Arial", "Times New Roman"];
 
 async function fontsPresent() {
@@ -70,9 +59,6 @@ async function warm() {
   }
 }
 
-/* Documents already laid out, by exactly what is in them. The same form comes
-   through again and again — every session opens on the same blank one — and
-   laying it out a second time produces a file identical to the first. */
 const laidOut = new Map();
 const HELD = 60;
 
@@ -81,10 +67,6 @@ function keep(fingerprint, pdf) {
   while (laidOut.size > HELD) laidOut.delete(laidOut.keys().next().value);
 }
 
-/**
- * Tells .docx from .xlsx by the zip's entry names: the engine needs the right extension and export filter,
- * and a misnamed workbook fails with no PDF and nothing to explain it.
- */
 function kindOf(bytes) {
   const head = bytes.slice(0, Math.min(bytes.length, 4096)).toString("latin1");
   if (head.includes("xl/workbook.xml") || head.includes("xl/_rels")) {
@@ -94,8 +76,6 @@ function kindOf(bytes) {
 }
 
 async function toPdf(bytes) {
-  /* Its own directory each time: two conversions at once must not meet, and
-     the engine must not carry anything from one to the next. */
   const dir = await mkdtemp(join(tmpdir(), "docx-"));
   const what = kindOf(bytes);
   try {
@@ -144,8 +124,6 @@ createServer(async (req, res) => {
   const bytes = Buffer.concat(chunks);
   if (!bytes.length) return done(400, JSON.stringify({ error: "nothing was sent" }));
 
-  /* A second reading for donations the site could not open itself (a scan, old Word, a spreadsheet).
-     It answers words, never a document; an unreadable file is not an error. */
   if (req.url === "/read") {
     try {
       const words = await wordsOf(bytes, String(req.headers["x-name"] || "").slice(0, 200));
@@ -157,7 +135,6 @@ createServer(async (req, res) => {
 
   if (!looksLikeDocx(bytes)) return done(400, JSON.stringify({ error: "not a document" }));
 
-  /* Where the blanks are on the page the form draws, as fractions of the page (never pixels) so they hold at any size. */
   if (req.url === "/map") {
     try {
       let labels = [];

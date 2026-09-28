@@ -4,7 +4,6 @@ import { vessels } from "../engine/fleet";
 import { inOrder } from "../engine/order";
 import defaults from "../engine/defaults.json";
 
-/* The jobs, in one order, worked out once rather than on every keystroke. */
 const ROLES = inOrder(defaults.roles);
 
 const SCORES = [1, 2, 3, 4, 5];
@@ -93,8 +92,6 @@ export default function Rail({
       ? Math.round((new Date(doc.end) - new Date(doc.start)) / 864e5) + 1
       : 0;
   const backwards = new Date(doc.end) < new Date(doc.start);
-  /* The ones this person has been on are folded in rather than put first: a
-     list that reorders itself has to be read whole every time. */
   const theFleet = vessels(profile.vessels);
 
   return (
@@ -199,9 +196,6 @@ export default function Rail({
               </select>
             </Field>
           </div>
-          {/* The fleet, the same list the evidence panel offers, plus whatever else this
-              person has been on. Still typed in freely: a trip can be on a
-              chartered vessel, a rig or a yard. */}
           <datalist id="l-vessel">
             {theFleet.map((v) => (
               <option key={v} value={v} />
@@ -298,8 +292,6 @@ export default function Rail({
           <Icon name="print" size={13} />
           Print / save PDF
         </button>
-        {/* These two fill the company's own .docx; the button above prints what is
-            on screen. */}
         <div className="actions docs">
           <button onClick={onWord} title="Fill the company's Word form and download it">
             <Icon name="form" size={12} />

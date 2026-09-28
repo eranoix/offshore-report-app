@@ -44,7 +44,6 @@ import { available as cloudOn, loadDocument, saveDocument } from "../engine/clou
 import defaults from "../engine/defaults.json";
 import "../styles/form.css";
 
-/** The five pieces of evidence the programme asks for. */
 const FORMS = {
   witness: { code: "NW-CAP-001", label: "Witness testimony", short: "Witness", who: "witness",
     blurb: "A colleague records a task they saw" },
@@ -56,22 +55,11 @@ const FORMS = {
     blurb: "The judgement on all the evidence" },
 };
 
-/* The jobs a worksite actually has. The assessor is often the superintendent,
-   who does not appear on the trip form's list, so the scheme's own rung is
-   added here. A document saved with anything else keeps what it says. */
 const JOBS = [...defaults.roles, "ROV Superintendent"];
 
-/**
- * How the person stood to the candidate. A list, because typed by hand the
- * same answer arrived spelled several ways; grouped by what the relation is.
- */
-/* Each group's answers in one order. The groups keep theirs: alongside the
-   candidate, over them, judging them, which is a ladder and not a list of names. */
 const BONDS = Object.fromEntries(
   Object.entries(defaults.bonds || {}).map(([group, list]) => [group, inOrder(list)]),
 );
-/* A document saved with something else keeps what it says: the list is a
-   shortcut, never a cage. */
 const bonds = (current) => {
   const known = Object.values(BONDS).flat();
   return current && !known.includes(current)
@@ -79,7 +67,6 @@ const bonds = (current) => {
     : BONDS;
 };
 
-/** A grouped list of answers, with whatever this one already says kept. */
 function Bond({ value, onChange, id, empty = "Not saying" }) {
   return (
     <select id={id} value={value || ""} onChange={(e) => onChange(e.target.value)}>
@@ -96,7 +83,6 @@ function Bond({ value, onChange, id, empty = "Not saying" }) {
 }
 
 const KEY = "caap:state";
-/* Under the account, never under the browser: see engine/vault.js. */
 const load = () => readMine(KEY, {}) || {};
 
 const BLANK = {
@@ -108,12 +94,10 @@ const BLANK = {
   task: "", outcome: "met", draft: false,
 };
 
-/** Every document of this level, in the order an assessment is assembled. */
 const ORDER = ["witness", "observation", "knowledge", "feedback"];
 const ONE_EACH = { witness: 1, observation: 1, knowledge: 1, feedback: 1 };
 const MAX_COPIES = 6;
 
-/** The selection cut into n parts that differ by at most one, in order. */
 function share(list, n) {
   if (n <= 0) return [];
   if (n === 1) return [list];
@@ -129,26 +113,19 @@ function share(list, n) {
   return out;
 }
 
-/** Which document is on the stage: the kind, and which copy of it. */
 const slot = (kind, i) => `${kind}#${i}`;
 
-/** How many of a kind are wanted. Zero means the document is not being made. */
 const countOf = (copies, kind) => (Number.isInteger(copies[kind]) ? copies[kind] : 1);
 
 export default function Caap() {
   const saved = load();
   const [form, setForm] = useState(() => (FORMS[saved.form] ? saved.form : "witness"));
-  /* One piece of evidence often cannot carry every criterion, so a document
-     can be issued more than once. Each KIND of document still covers the whole
-     selection: the copies of that kind divide it between them. */
   const [copies, setCopies] = useState(() => ({ ...ONE_EACH, ...(saved.copies || {}) }));
   const [copy, setCopy] = useState(0);
   const howMany = (kind) => countOf(copies, kind);
   const totalDocs = () => ORDER.reduce((n, k) => n + countOf(copies, k), 0);
   const [doc, setDoc] = useState(() => {
     const d = { ...BLANK, ...(saved.doc || {}) };
-    /* Older saves had one relationship for both people. It belongs to the
-       assessor; the witness starts from it too rather than from nothing. */
     if (saved.doc?.relationship) {
       d.assessorRelationship = saved.doc.assessorRelationship || saved.doc.relationship;
       d.witnessRelationship = saved.doc.witnessRelationship || saved.doc.relationship;
@@ -157,16 +134,11 @@ export default function Caap() {
     return d;
   });
   const [wanted, setWanted] = useState(() => (saved.scheme === "crf" ? "crf" : "caap"));
-  /* The two instruments cover different lists, so what you tick for one is not
-     an answer for the other. Each keeps its own, and switching back finds it
-     where you left it. */
   const [picks, setPicks] = useState(() =>
     Array.isArray(saved.covered)
       ? { caap: saved.covered, crf: [] }
       : { caap: saved.covered?.caap || [], crf: saved.covered?.crf || [] },
   );
-  /* Four documents, four statements: sharing one put the witness testimony's
-     words inside the feedback form as well. */
   const [texts, setTexts] = useState(() =>
     saved.texts || (typeof saved.text === "string" && saved.text ? { [saved.form || "witness"]: saved.text } : {}),
   );
@@ -174,9 +146,7 @@ export default function Caap() {
     saved.owns || (saved.candidateText ? { "feedback#0": saved.candidateText } : {}),
   );
   const [picking, setPicking] = useState("");
-  /* How the archive is coming along, so its button can say so. */
   const [bundling, setBundling] = useState(null);
-  /* Reading the tasks against the framework, and how far it has got. */
   const [reading, setReading] = useState(null);
   const BLANK_QS = () => Array.from({ length: 4 }, () => ({ q: "", a: "" }));
   const [asks, setAsks] = useState(() =>
@@ -184,20 +154,8 @@ export default function Caap() {
       ? { "knowledge#0": saved.questions }
       : saved.asks || {},
   );
-  /**
-   * What changes from one copy to the next: each copy can say who signed it
-   * and what was done (a real pack has testimonies from different colleagues
-   * about different tasks). Whatever it does not say, it inherits from the pack.
-   */
   const [each, setEach] = useState(() => saved.each || {});
-  /**
-   * What each document carries, marked explicitly by slot: one set of areas and
-   * one set of tasks; everything else in the panel is read off it. A pack saved
-   * under the old shape is seeded from its even cut below, once, so nothing moves.
-   */
   const [marks, setMarks] = useState(() => saved.marks || {});
-  /* Which of the five sections of the pack is open, and which document the
-     lists are marking for. Empty means all of them. */
   const [tab, setTab] = useState(0);
   const [lens, setLens] = useState("");
   const [openUnits, setOpenUnits] = useState({});
@@ -206,13 +164,9 @@ export default function Caap() {
   const [aiUp, setAiUp] = useState(isAvailable);
   const [busy, setBusy] = useState("");
   const [done, setDone] = useState({ done: 0, total: 0 });
-  /* What the supervisor made of each document, for the line in the panel. */
   const [watch, setWatch] = useState({});
-  /* The whole set — every document, every copy, what is chosen — kept under one
-     record, so an assessment can be put down and picked up on another machine. */
   const [savedId, setSavedId] = useState(() => saved.savedId || null);
   const [saveState, setSaveState] = useState("");
-  /* What a full page of this form holds, measured by the sheet itself. */
   const [unit, setUnit] = useState("");
   const [asked, setAsked] = useState("");
   const [find, setFind] = useState("");
@@ -245,51 +199,29 @@ export default function Caap() {
   }, []);
 
   const level = levelNamed(doc.level);
-  /* A level without a Record Form cannot be written against one: the switch
-     says so and the panel stays on the framework. */
   const scheme = wanted === "crf" && level.crf ? "crf" : "caap";
   const instrument = SCHEMES[scheme];
   const caapCount = useMemo(() => topicCount(level, "caap"), [level]);
   const crfCount = level.crf ? crfCriteria(level.crf).length : 0;
   const groups = useMemo(() => topicsFor(level, scheme), [level, scheme]);
   const allCriteria = useMemo(() => groups.flatMap((g) => g.items), [groups]);
-  /* The tasks of this discipline, read out of real paperwork by
-     scripts/tasks.mjs and shipped: everybody gets the same list, and nobody has
-     to press anything to get it. The field stays free text — the list is a
-     shortcut, never a cage. */
   const taskGroups = useMemo(() => tasksFor(level.caap), [level.caap]);
-  /* The whole book, for the search: a job this level's paperwork does not
-     happen to record is still a job somebody might have done, and the picker
-     says whose it is rather than hiding it. */
   const everyTask = useMemo(() => tasksFor(level.caap, true), [level.caap]);
-  /* What each task proves, worked out once by scripts/proves.mjs and carried
-     with the site. The whole book, not this level's share of it: a task typed
-     by hand or brought in from a saved pack still knows what it shows. */
   const provesOf = useMemo(() => {
     const out = new Map();
     for (const g of everyTask) for (const t of g.items) out.set(t.text, t.proves || []);
     return out;
   }, [everyTask]);
   const taskCount = taskGroups.reduce((n, g) => n + g.items.length, 0);
-  /* How many of a kind are being made. Not capped by the areas chosen: every
-     document is marked by hand, so a copy may sit empty until you fill it. */
   const making = (kind) => howMany(kind);
-  /* Read from the count as it stands, not from the render: two quick presses
-     both worked from the same figure and the second was lost. */
   const step = (kind, by) =>
     setCopies((c) => ({ ...c, [kind]: Math.max(0, Math.min(MAX_COPIES, countOf(c, kind) + by)) }));
 
-  /** Every document being made, in the order a pack is assembled. */
   const slots = useMemo(
     () => ORDER.flatMap((k) => Array.from({ length: countOf(copies, k) }, (_, i) => ({ kind: k, i, slot: slot(k, i) }))),
     [copies],
   );
   const tasksOf = (kind, i) => marks[slot(kind, i)]?.tasks || [];
-  /**
-   * What one document carries: what its tasks prove, plus what was added by
-   * hand, less what was taken off by hand. The hand always wins: a criterion
-   * taken off stays off, and one added stays on when its task is removed.
-   */
   const areaTextsOf = (kind, i) => {
     const mark = marks[slot(kind, i)] || {};
     const out = new Set();
@@ -298,36 +230,23 @@ export default function Caap() {
     for (const c of mark.off || []) out.delete(c);
     return [...out];
   };
-  /** Which of them a task brought, rather than a hand. */
   const broughtBy = (kind, i, text) => {
     const mark = marks[slot(kind, i)] || {};
     if ((mark.off || []).includes(text)) return false;
     return (mark.tasks || []).some((t) => (provesOf.get(t) || []).includes(text));
   };
-  /**
-   * What the pack covers: everything marked onto any document. A criterion is
-   * covered when some document carries it, and not before.
-   */
   const covered = useMemo(() => {
     const want = new Set();
-    /* What their tasks prove counts as much as what was ticked: the ticked list
-       alone said nothing was covered while every document was full of work. */
     for (const s of slots) for (const t of areaTextsOf(s.kind, s.i)) want.add(t);
     return want.size ? allCriteria.filter((c) => want.has(c.text)) : [];
   }, [marks, slots, allCriteria, provesOf]);
-  /** Every task on any document, in the order they were first marked. */
   const allTasks = useMemo(() => {
     const out = [];
     for (const s of slots) for (const t of marks[s.slot]?.tasks || []) if (!out.includes(t)) out.push(t);
     return out;
   }, [marks, slots]);
-  /** Which documents carry one line, by slot. */
   const tasksOn = (text) => slots.filter((s) => (marks[s.slot]?.tasks || []).includes(text)).map((s) => s.slot);
   const areasOn = (text) => slots.filter((s) => areaTextsOf(s.kind, s.i).includes(text)).map((s) => s.slot);
-  /**
-   * Put a line on a document, or take it off. Read inside the write, never
-   * from the render, or two quick presses lose the second.
-   */
   const markTask = (key, text) =>
     setMarks((m) => {
       const had = m[key]?.tasks || [];
@@ -335,11 +254,6 @@ export default function Caap() {
       return { ...m, [key]: { ...(m[key] || {}), tasks: next } };
     });
 
-  /**
-   * A criterion put on or taken off one document by hand. What a task brought
-   * is worked out, not stored, so turning it off is remembered as taken off,
-   * which outlasts the task coming and going.
-   */
   const markArea = (key, text) =>
     setMarks((m) => {
       const had = m[key] || {};
@@ -367,7 +281,6 @@ export default function Caap() {
       };
     });
 
-  /** A whole group at once, on one document, in one write. */
   const markMany = (what, key, list, on) =>
     setMarks((m) => {
       const had = m[key] || {};
@@ -396,17 +309,11 @@ export default function Caap() {
         [key]: {
           ...had,
           areas: (had.areas || []).filter((t) => !hit.has(t)),
-          /* Only what a task would otherwise keep bringing back. */
           off: [...(had.off || []), ...list.filter((t) => brought.has(t) && !(had.off || []).includes(t))],
         },
       };
     });
 
-  /**
-   * Seeds the marks once from a pack written under the old shape (areas cut
-   * evenly between copies, one task line every copy inherited), so it opens
-   * with every document carrying what it was already carrying.
-   */
   useEffect(() => {
     if (Object.keys(marks).length) return;
     const chosen = picks[scheme] || [];
@@ -427,9 +334,6 @@ export default function Caap() {
     setMarks(seed);
   }, [generation, scheme]);
 
-  /* Asking for fewer copies — or for none at all — must not leave the stage on
-     a document that is no longer being made. Counted the same way the rest of
-     the panel counts, so the stage can never sit on a copy that is not there. */
   const live = making(form) > 0 ? form : ORDER.find((k) => making(k) > 0) || form;
   const at = Math.max(0, Math.min(copy, making(live) - 1));
   const here = slot(live, at);
@@ -442,13 +346,8 @@ export default function Caap() {
   const setQuestions = (next) =>
     setAsks((m) => ({ ...m, [here]: typeof next === "function" ? next(m[here] || m[live] || BLANK_QS()) : next }));
 
-  /* The other documents, drawn quietly while you read this one: laying a form
-     out is a round trip, and doing it on click meant seconds of waiting per tab. */
   useEffect(() => {
     let alive = true;
-    /* A while after the page settles, and only once it has: the effect's
-       dependencies change as the panel is used, and starting a fresh round of
-       drawings on each change put four of them in the air at once. */
     const timer = setTimeout(async () => {
       for (const k of ORDER) {
         if (!alive) break;
@@ -463,9 +362,6 @@ export default function Caap() {
     };
   }, [doc, texts, owns, asks, live, generation]);
 
-  /* What this one carries, as the framework's own objects. The marks keep the
-     words, matched against the scheme in play, so the two instruments never
-     show each other's answers. */
   const areaObjsOf = (kind, i) => {
     const want = new Set(areaTextsOf(kind, i));
     return want.size ? allCriteria.filter((c) => want.has(c.text)) : [];
@@ -497,27 +393,16 @@ export default function Caap() {
   };
   const areas = mine.map((c) => c.text).join("; ") || "not stated";
 
-  /** This copy's own answers, falling back to the pack's. */
   const only = (kind, i) => each[slot(kind, i)] || {};
-  /* The reference this candidate's own paperwork already uses: WT for a
-     witness testimony, OT for an observation of task, QU for questioning.
-     Feedback has no short form in it, so it takes the obvious one. */
   const REFS = { witness: "WT", observation: "OT", knowledge: "QU", feedback: "FB" };
-  /* The date as the form prints it, and only if there is one. */
   const asPrinted = (iso) => {
     const parts = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return parts ? `${parts[3]}/${parts[2]}/${parts[1].slice(2)}` : "";
   };
   const setOnly = (kind, i, field, value) =>
     setEach((all) => ({ ...all, [slot(kind, i)]: { ...(all[slot(kind, i)] || {}), [field]: value } }));
-  /** What the form calls this one: WT01, OT01, QU01, FB01. */
   const refOf = (kind, i) => `${REFS[kind] || "WT"}${String(i + 1).padStart(2, "0")}`;
 
-  /**
-   * Who signs one document. Every document owns its signer (a real folder has
-   * testimonies from different people); the pack's answer is only the starting
-   * point a new document inherits.
-   */
   const SIGN = (kind) =>
     kind === "witness"
       ? { name: "witness", position: "witnessPosition", bond: "witnessRelationship" }
@@ -525,34 +410,22 @@ export default function Caap() {
   const signerOf = (kind, i) => {
     const own = only(kind, i);
     const k = SIGN(kind);
-    /* Once a document has said something — even that the box is empty — it is
-       its own answer, not the pack's. */
     return {
       name: own[k.name] ?? doc[k.name] ?? "",
       position: own[k.position] ?? doc[k.position] ?? "",
       bond: own[k.bond] ?? doc[k.bond] ?? "",
     };
   };
-  /**
-   * @param settle the field has been left, not merely typed in; only then is
-   *   the name kept for next time, or half-typed names become people in the list.
-   */
   const setSigner = (kind, i, field, value, settle = false) => {
     const k = SIGN(kind);
     const own = only(kind, i);
     const next = { [k[field]]: value };
-    /* A name you have used before brings its position and its relationship
-       with it — the whole point of remembering them. What this document
-       already says is never overwritten. */
     if (field === "name") {
       const known = knownAs(value);
       if (known?.position && own[k.position] === undefined) next[k.position] = known.position;
       if (known?.bond && own[k.bond] === undefined) next[k.bond] = known.bond;
     }
     setEach((all) => ({ ...all, [slot(kind, i)]: { ...(all[slot(kind, i)] || {}), ...next } }));
-    /* The position and the relationship become the default the next document
-       starts from. The NAME never does: naming the witness of WT02 must not sign
-       WT01 and WT03 as well. */
     if (field !== "name" && value && !doc[k[field]]) change(k[field], value);
     if (settle) {
       const was = signerOf(kind, i);
@@ -565,7 +438,6 @@ export default function Caap() {
     }
   };
 
-  /** The pack as this one document sees it: its own signer, its own tasks. */
   const docOf = (kind, i) => {
     const who = signerOf(kind, i);
     const k = SIGN(kind);
@@ -574,29 +446,20 @@ export default function Caap() {
       [k.name]: who.name,
       [k.position]: who.position,
       [k.bond]: who.bond,
-      /* What this one is about is what was marked onto it: the subject is not a
-         field of its own, because two answers for one fact is one too many. */
       task: tasksOf(kind, i).join("; "),
       ref: refOf(kind, i),
       dated: asPrinted(doc.reviewDate),
     };
   };
 
-  /* Which document the two search pickers write onto: the one the lists are
-     marking for or, with the lens off, the one on the page. Every tick belongs
-     to a document. */
   const into = lens && slots.some((x) => x.slot === lens) ? lens : here;
   const intoWhere = slots.find((x) => x.slot === into) || { kind: live, i: at };
   const intoRef = refOf(intoWhere.kind, intoWhere.i);
 
-  /* Names used before, offered back with the position and the relationship
-     they came with. Read once a render: it is a list, not a subscription. */
   const book = useMemo(() => everyone(), [each, generation, tab]);
   const roleList = useMemo(() => knownPositions(JOBS), [each, generation, tab]);
-  /* The fleet, with whatever ships this person has actually been on first. */
   const theFleet = useMemo(() => vessels(beenOn()), [each, generation, tab]);
 
-  /** Every document being made, with everything the panel says about it. */
   const sheets = useMemo(
     () =>
       slots.map(({ kind, i, slot: key }) => {
@@ -609,7 +472,6 @@ export default function Caap() {
           ref: refOf(kind, i),
           label: FORMS[kind].label,
           code: FORMS[kind].code,
-          /* The subject is not a field: it is what was marked onto it. */
           subject: told.join("; "),
           tasks: told.length,
           areas: areaTextsOf(kind, i).length,
@@ -622,19 +484,10 @@ export default function Caap() {
       }),
     [slots, marks, each, doc, live, at],
   );
-  /**
-   * What the scheme is still waiting for, and which tasks would answer it.
-   * Marked quietly: it suggests what to record next, it is not a fault.
-   */
   const stillOpen = useMemo(() => {
     const had = new Set(covered.map((c) => c.text));
     return new Set(allCriteria.filter((c) => !had.has(c.text)).map((c) => c.text));
   }, [allCriteria, covered]);
-  /**
-   * Every task that would close something still open, with what it would
-   * close, not only the shortest set: a task answering two competences is worth
-   * knowing about either way. The shortest set is marked as the way out.
-   */
   const wouldClose = useMemo(() => {
     const out = new Map();
     if (!stillOpen.size) return out;
@@ -648,8 +501,6 @@ export default function Caap() {
     }
     return out;
   }, [taskGroups, stillOpen, marks, slots]);
-  /** The few that, taken together, would finish it: each time the one that
-   *  answers the most of what is still left. */
   const theWayOut = useMemo(() => {
     const out = new Set();
     const left = new Set(stillOpen);
@@ -674,19 +525,11 @@ export default function Caap() {
     return out;
   }, [taskGroups, stillOpen, wouldClose]);
 
-  /* The tasks marked on a document that the book does not have — typed by
-     hand, or read out of the library under a heading that has since changed.
-     They belong in the list or they cannot be unmarked. */
   const orphanTasks = useMemo(() => {
     const known = new Set(taskGroups.flatMap((g) => g.items.map((t) => t.text)));
     return allTasks.filter((t) => !known.has(t)).map((text) => ({ text, unit: "" }));
   }, [taskGroups, allTasks]);
 
-  /**
-   * What the tasks on one document say about the scheme: the units it could
-   * speak to are offered and opened for you to tick. Nothing is marked on your
-   * behalf: the offer is the work saved, not the judgement.
-   */
   const suggestion = useMemo(() => {
     const at2 = slots.find((x) => x.slot === lens);
     if (!at2) return null;
@@ -700,15 +543,8 @@ export default function Caap() {
     return { units };
   }, [lens, marks, taskGroups, groups, slots]);
 
-  /**
-   * Written on the page itself. The fields sit over the printed blanks, so a
-   * line typed there reaches the same place as the panel. The position line
-   * holds two answers joined the way the form joins them, so it is split that way.
-   */
   const onLine = (label, value) => {
     const which = (LINES[live] || []).indexOf(label);
-    /* Every document owns its signer, so the line under the pointer is this
-       document's line, whichever copy it is. */
     if (which === 0) {
       setSigner(live, at, "name", value, true);
     } else if (which === 1) {
@@ -716,7 +552,6 @@ export default function Caap() {
       const role = cut.length > 1 ? cut[0].trim() : "";
       const where = (cut.length > 1 ? cut.slice(1).join(" — ") : value).trim();
       if (role) setSigner(live, at, "position", role, true);
-      /* The vessel is the trip's, not this document's: it prints on all six. */
       change("site", where);
     } else if (which === 2) {
       change("candidate", value);
@@ -724,25 +559,18 @@ export default function Caap() {
       setSigner(live, at, "bond", value, true);
     }
   };
-  /* The bordered box: the statement, and on the feedback form the candidate's
-     own words underneath it. */
   const onBox = (which, value) => {
-    /* The knowledge form has no prose box: what looks like one is the questions
-       and answers, read from their own field. Written into the prose box, every
-       word was lost the next time the page was laid out. */
     if (live === "knowledge") setQuestions(fromQA(value));
     else if (which === 0) setText(value);
     else setOwns((o) => ({ ...o, [here]: value }));
   };
 
-  /** Everything one sheet needs. */
   const sheetOf = (k, i) => ({
     text: texts[slot(k, i)] || "",
     own: owns[slot(k, i)] || "",
     questions: asks[slot(k, i)] || BLANK_QS(),
   });
 
-  /* The file itself: the company's form with this document's words in it. */
   function save(bytes, name, type) {
     const url = URL.createObjectURL(new Blob([bytes], { type }));
     const a = document.createElement("a");
@@ -754,19 +582,13 @@ export default function Caap() {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
   const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  /** What the file of one document is called: its reference, then the form. */
   const fileOf = (kind, i) => `${refOf(kind, i)} ${formName(kind, doc)}`;
 
-  /** This one document, as the company's Word file. */
   async function handOver() {
     const bytes = await fillForm(live, docOf(live, at), sheetOf(live, at)).catch(() => null);
     if (bytes) save(bytes, fileOf(live, at), DOCX);
   }
 
-  /**
-   * All of them in one archive, each still its own document: separate
-   * downloads half a second apart are blocked by browsers after the second.
-   */
   async function handOverAll() {
     if (bundling) return;
     const jobs = ORDER.flatMap((k) => Array.from({ length: making(k) }, (_, i) => [k, i]));
@@ -778,8 +600,6 @@ export default function Caap() {
       setBundling((b) => (b ? { ...b, done: b.done + 1 } : b));
     }
     if (Object.keys(files).length)
-      /* A docx is already a zip: stored rather than squeezed again, which is
-         instant and honest about the size. */
       save(
         zipSync(files, { level: 0 }),
         `${doc.candidate ? `${doc.candidate} — ` : ""}${instrument.label} evidence.zip`,
@@ -818,7 +638,6 @@ export default function Caap() {
     setTimeout(() => setSaveState(""), 4000);
   }
 
-  /* Opened from the home page: /caap?doc=<id> brings the whole set back. */
   useEffect(() => {
     const id = new URLSearchParams(location.search).get("doc");
     if (!id || !cloudOn()) return;
@@ -834,8 +653,6 @@ export default function Caap() {
         setOwns(d.owns || {});
         setAsks(d.asks || {});
         setEach(d.each || {});
-        /* An older record has no marking: the effect above seeds it from the
-           even cut it was saved with, so it opens exactly as it was left. */
         setMarks(d.marks || {});
         setLens("");
         setSavedId(id);
@@ -863,12 +680,9 @@ export default function Caap() {
     setGeneration((g) => g + 1);
   }
 
-  /* Everything one document of one copy needs to know about itself. */
   function jobOf(kind, i) {
-    /* What this document was marked with — not an even slice of the pack. */
     const part = areaObjsOf(kind, i);
     const tasks = tasksOf(kind, i);
-    /* Whoever signed this copy — not whoever signed the first one. */
     const who = signerOf(kind, i);
     const person = who.name;
     const role = who.position;
@@ -879,24 +693,16 @@ export default function Caap() {
       part,
       tasks,
       told: tasks.join("; "),
-      /* Whoever signs this copy, carried with the job: the checks downstream
-         need to know which name, rank and relationship came off the form. */
       signer: { name: person, position: role, bond },
       bond,
       listed,
-      /* Room to answer what it carries: a document with fifteen areas needs far
-         more than a trip comment, and may run onto a second page. */
       budget: Math.min(8000, 2000 + (part.length + tasks.length) * 340),
-      /* The library is searched for this form and these areas — his own
-         testimonies of the same kind are the best guide there is. */
       search: {
         form: `${FORMS[kind].label} ${FORMS[kind].code} CAAP`,
         discipline: level.caap,
         areas: part.slice(0, 5).map((c) => c.text).join(" "),
         task: tasks.slice(0, 2).join(" "),
       },
-      /* What the other copies of this same document carry, so three witness
-         testimonies do not tell the same story three times. */
       others: Array.from({ length: making(kind) }, (_, n) => n)
         .filter((n) => n !== i)
         .map((n) => {
@@ -907,8 +713,6 @@ export default function Caap() {
           }`;
         })
         .join("\n"),
-      /* The areas as the framework groups them, so the paragraphs follow the
-         scheme instead of running one into the next. */
       byUnit: Object.entries(
         part.reduce((m, c) => {
           (m[c.unit || "Areas"] = m[c.unit || "Areas"] || []).push(c.text);
@@ -929,17 +733,10 @@ export default function Caap() {
     };
   }
 
-  /* A statement has a shape: what the work was, then what it showed, then the
-     writer's judgement. Without it the writing produced one long block that
-     answered the list in the order it was given. */
   const SHAPE = `Open with the work itself — what was done, where, and the writer's part in it. Then take the areas a group at a time, in the order they are grouped below, a short paragraph for each group. Close with one line of the writer's own judgement, or with nothing: a statement that stops when the work is described reads better than one that winds up.`;
 
   const pageOf = (kind) => SHEET[kind] || 1000;
 
-  /**
-   * How to cover what the document carries: a sentence each for a handful of
-   * areas, by group past that, so a testimony does not read as a checklist.
-   */
   const coverFor = (areas) => {
     const many = areas > 8;
     return `Everything listed must be answered in the text${
@@ -961,8 +758,6 @@ No judging the work — not "to a standard I was satisfied with", not "which red
 The place the vehicle is flown from is the **control van/room**, written exactly that way. Most Northwind Offshore ships have a control room rather than a van, and the scheme's own wording says van — so the paperwork says both, and a bare "control van" reads as somebody who has not been on these vessels.`;
   };
 
-  /* The upstream is shared and sometimes busy. One refusal must not leave a
-     box empty on a form that says it is complete. */
   async function attempt(work, tries = 5, onStep = null) {
     let last;
     for (let i = 0; i < tries; i += 1) {
@@ -973,9 +768,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
         last = e;
       }
       if (i < tries - 1) {
-        /* A busy refusal needs no wait here: the request already holds until
-           upstream has room. Anything else (a dropped connection, a bad gateway)
-           still waits a moment longer each time. */
         if (last?.retryIn) {
           if (onStep) onStep(`the writing service is busy — waiting ${last.retryIn}s`);
         } else {
@@ -983,54 +775,34 @@ The place the vehicle is flown from is the **control van/room**, written exactly
         }
       }
     }
-    /* Nothing came back. Saying so is the point: a caller that swallows this
-       leaves a box blank on a document that claims to be complete. */
     throw last || new Error("the writing did not answer");
   }
 
-  /**
-   * The supervisor: what the machine can check, it checks for nothing; what it
-   * cannot, a second reader does. Faults are handed back by name and the
-   * document is repaired — twice at most, then reported as it stands.
-   */
   async function supervise(body, job, kind, part = "", voice = "", houseOf = "", library = true, onStep = () => {}) {
     const topics = job.part.map((c) => c.text);
     const mark = part ? `${job.key}:${part}` : job.key;
     let text = body;
     let rounds = 0;
     let left = [];
-    /* A grounding check that could not run has not passed: the panel says so
-       rather than reporting the document as clean. */
     let unchecked = false;
     for (let pass = 0; pass < 2; pass += 1) {
       onStep(pass === 0 ? "checking it" : "repairing it");
       const machine = faults(text, {
         areas: part === "own" ? [] : topics,
         tasks: part === "own" ? [] : job.tasks,
-        /* The candidate writes in the first person: he does not name himself. */
         candidate: part ? "" : doc.candidate,
         voice: part === "own" ? "first" : "",
-        /* The candidate's box is a few honest paragraphs, not a second
-           assessment: asked for a length that grew with the framework, the
-           repair pass padded it into the assessor's voice. */
         min: part === "own" ? Math.max(350, Math.round(pageOf(kind) * 0.45)) : askFor(kind, job.part.length),
       });
       let found = machine;
       if (library) {
-        /* Nothing may be asserted that the records do not show. The writing is
-           read back against the very passages it was given. */
         const papers = await passagesFor(job.search, 10).catch(() => []);
         const made = papers.length
           ? await unsupported({
               text,
               passages: papers,
-              /* What this copy was marked with is what its signer attests. */
               did: part === "own" ? [] : job.tasks,
-              /* The claim is about the candidate, whoever signs it. */
               who: doc.candidate,
-              /* And what the panel typed onto the form is given, not invented:
-                 the records have no reason to confirm a rank or a vessel that
-                 this person filled in themselves. */
               given: {
                 candidate: doc.candidate,
                 "candidate's discipline": doc.discipline,
@@ -1054,7 +826,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
           ];
       }
       if (!found.length && !machine.length) {
-        /* Only when it passes the cheap checks is a reader's time worth it. */
         const seen = await review({
           text,
           topics: part === "own" ? [] : topics,
@@ -1071,8 +842,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
       left = found;
       if (!found.length) break;
       rounds += 1;
-      /* The voice is not a matter of persuasion: a text about him becomes his
-         own words by rewriting the person, and nothing else. */
       const wrongVoice = found.findIndex((f) => f.startsWith("Rewrite it in the first person"));
       if (wrongVoice >= 0) {
         text = String(
@@ -1092,9 +861,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
           if (!left.length) break;
         }
       }
-      /* A whole-document rewrite can drop one thing while fixing another. On
-         the last pass, when only coverage is missing, write the missing part
-         and add it rather than touching what already passed. */
       if (pass === 1 && found.every((f) => f.startsWith("This is not answered"))) {
         const gaps = found.map((f) => f.split(": ").slice(1).join(": ")).filter(Boolean);
         const tail = await writeBlock({
@@ -1131,9 +897,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
         }),
       ).trim();
     }
-    /* Two readings for the voice, because a machine gives itself away in two
-       different ways: the words it reaches for, which can be listed, and the
-       shape of what it writes, which takes a reader. */
     for (let round = 0; round < 2; round += 1) {
       onStep("reading it aloud");
       const heard = tells(text);
@@ -1157,10 +920,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
       ).trim();
     }
 
-    /* One sheet, wherever one will do. A statement that spills is tightened
-     * back onto the sheet it nearly fit, never grown to fill the paper. The
-     * limit is what survives tightening: one that would lose half keeps its
-     * second sheet. */
     onStep("fitting it to the page");
     const cap = pageOf(kind);
     if (cap > 300) {
@@ -1195,11 +954,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
     return text;
   }
 
-  /**
-   * Reads what each document with tasks on it is about and marks what it
-   * proves. It only ever adds, never unmarks, so a press cannot cost work done
-   * by hand.
-   */
   async function readAreas() {
     if (!aiUp || reading) return;
     const jobs = (lens ? slots.filter((x) => x.slot === lens) : slots).filter(
@@ -1227,8 +981,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
       if (got.length) {
         markMany("areas", at2.slot, got.map((c) => c.text), true);
         added += got.length;
-        /* Open what it touched, so a press shows its work rather than a
-           number changing somewhere out of sight. */
         setOpenUnits((o) => {
           const next = { ...o };
           for (const c of got) next[c.unit] = true;
@@ -1247,27 +999,17 @@ The place the vehicle is flown from is the **control van/room**, written exactly
     setTimeout(() => setReading(null), 12000);
   }
 
-  /**
-   * Writes one copy of one document, whole. `onStep` is told how far through
-   * it is, from nothing to one: a document takes most of a minute, and a bar
-   * that moves only per document looks stuck.
-   */
   async function writeOne(kind, i, mode, onStep = () => {}) {
     const job = jobOf(kind, i);
     const { key, part, tasks, told, bond, listed, budget, house, brief, search, others, byUnit } = job;
 
     if (kind === "knowledge") {
-      /* An empty form is not a starting point: the questions come from the
-         areas this copy carries, and where there are none the writing proposes
-         four for the task. Anything you typed yourself is kept. */
       let asking = asks[key] || BLANK_QS();
       if (!asking.some((qa) => qa.q.trim())) {
         const fromAreas = part.slice(0, 4).map((c) => questionFrom(c.text));
         if (fromAreas.length) {
           asking = asking.map((qa, n) => (fromAreas[n] ? { ...qa, q: fromAreas[n] } : qa));
         } else {
-          /* One call per question, each from its own angle: asked for four at
-             once the writing answers in prose. */
           const angles = [
             "the procedure itself — the steps, and the order they go in",
             "the hazards and the controls that keep the job safe",
@@ -1363,8 +1105,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
               `Tasks (${tasks.length || 1}): ${told || "not stated"}`,
               `${instrument.noun === "competences" ? "Competences" : "Areas of the scheme"} this document must cover (${part.length}), grouped as the scheme groups them:`,
               byUnit || listed,
-              /* The note has to read as a boundary for the writer, never as something the
-                 reader could be told: stated plainly, the writing put it on the form. */
               others
                 ? `Between you and me, and never on the page: these areas belong to other copies of this form and are being written there. Leave them out silently. Never mention another copy, another witness, or anything being covered elsewhere — the person signing this saw what they saw and writes only that.\n${others}`
                 : "",
@@ -1381,15 +1121,8 @@ The place the vehicle is flown from is the **control van/room**, written exactly
     );
     setTexts((t) => ({ ...t, [key]: checked }));
 
-    /* The feedback form has two boxes, and the candidate's own comments are
-       part of the record: an empty half is an unfinished form. */
     if (kind === "feedback") {
-      /* The candidate's box is his own remarks: given the assessor's text it came
-         back in the assessor's voice. It gets its own brief, and the supervisor
-         checks the voice rather than the coverage. */
       const own = `${doc.candidate || "the candidate"} writing their own comments on the programme, in the first person, for the candidate's box on the feedback form`;
-      /* Told it writes the assessor's form, the model wrote the assessor's
-         words in the candidate's box. This half has its own identity. */
       const ownHouse = evidenceStyle(
         `the candidate's own comments box on the Northwind Offshore ${instrument.full} assessor feedback form (${FORMS.feedback.code}) — written by the candidate about their own work`,
       );
@@ -1413,11 +1146,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
     }
   }
 
-  /**
-   * What a document cannot be written without. The button stays shut until the
-   * form could be signed, and says what it is waiting for: evidence signed by
-   * nobody is not evidence, and the writing is the expensive part to waste.
-   */
   const wanting = (only = null) => {
     const out = [];
     if (!String(doc.candidate || "").trim()) out.push("the candidate's name");
@@ -1443,25 +1171,16 @@ The place the vehicle is flown from is the **control van/room**, written exactly
   const shortOne = wanting([live, at]);
   const saying = (list) => `Still needed: ${list.join(" · ")}`;
 
-  /* Whether a copy already says anything: a blank one is written, one that
-     says something is written again. */
   const written = (kind, i) => {
     const k = slot(kind, i);
     if (kind === "knowledge") return (asks[k] || []).some((qa) => qa.a?.trim());
     return Boolean((texts[k] || "").trim());
   };
 
-  /* Which document the count is on: the one after everything finished, and
-     never past the last. */
   const whichOf = (p) => Math.min(p.total, Math.floor(p.done) + 1);
 
-  /** Both buttons work on the whole set: Write it fills every document asked
-   *  for, Improve rewrites every one. `only` narrows it to the copy on the page
-   *  through the same machinery, so it gets the same progress, retry and check. */
   async function write(mode, only = null) {
     if (!aiUp) return;
-    /* One document discovering the minute upstream is full is every document
-       discovering it. Say so once, where the count is. */
     const doorAgain = onBusy((seconds) =>
       setDone((d) => (d.total ? { ...d, said: `the writing service is busy — waiting ${seconds}s` } : d)),
     );
@@ -1471,26 +1190,16 @@ The place the vehicle is flown from is the **control van/room**, written exactly
     setBusy(only ? "one" : mode);
     setDone({ done: 0, total: jobs.length, said: "" });
     let finished = 0;
-    /* How far through each document is, so the bar moves while one is being
-       written rather than only when it lands. */
     const part = new Map();
-    /* The bar wants the fraction — it is how it fills while one document is
-       still being written. The words want whole documents: printed raw, the
-       same number read "Writing 1.6500000000000001 of 5". */
     const tell = (said) =>
       setDone({
         done: finished + [...part.values()].reduce((n, x) => n + x, 0),
         total: jobs.length,
         said,
       });
-    /* A document whose writing never came back is not passed over: the set is
-       tried again for whatever is still blank, and anything still blank after
-       that is named on the panel. */
     async function sweep(list, hands = 3) {
       const queue = [...list];
       const failed = [];
-      /* Three at a time on the first pass: the whole set at once trips the
-         rate limit, one at a time keeps you waiting. */
       const workers = Array.from({ length: Math.min(hands, queue.length) }, async () => {
         while (queue.length) {
           const [k, i] = queue.shift();
@@ -1515,8 +1224,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
 
     let missed = await sweep(jobs);
     if (missed.length) {
-      /* One at a time: the usual reason for a refusal is the upstream being
-         busy, and three more at once is the one thing that cannot help. */
       finished -= missed.length;
       setDone({ done: finished, total: jobs.length });
       missed = await sweep(missed, 1);
@@ -1539,8 +1246,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
 
 
 
-  /* The five sections, each carrying the one number you want from it when you
-     are standing somewhere else. Brass where something is still missing. */
   const named = sheets.filter((x) => x.signer).length;
   const TABS = [
     { name: "The pack", badge: String(sheets.length), gap: false },
@@ -1583,9 +1288,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
               level={level}
               LEVELS={LEVELS}
               onLevel={(next) => {
-                /* A different level is a different framework and a different
-                   task book: what was marked answers a list that is no longer
-                   on the table. */
                 setDoc((d) => ({ ...d, level: next, discipline: levelNamed(next).caap }));
                 setUnit("");
                 setAsked("");
@@ -1689,10 +1391,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
         </div>
 
         <div className="rail-foot">
-          {/* The long job's button carries its own progress fill: one that says
-              "Writing 0/4..." and then sits still looks like it did nothing. */}
-          {/* Four across. With one document there is nothing to rewrite on its
-              own, so the row is three and says so rather than leaving a hole. */}
           <div className={`act-row${sheets.length > 1 ? "" : " three"}`}>
             <button className="btn" onClick={startOff} title="Lay out the facts you have given, without the writing">
               Start it off
@@ -1727,9 +1425,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
                   : `Improve ${sheets.length > 1 ? "them all" : "it"}`}
               </span>
             </button>
-            {/* And the one on the page, on its own. Rewriting the set to fix a
-                single copy costs every other copy its wording — and the wait,
-                and the minute upstream. */}
             {sheets.length > 1 && (
               <button
                 className={`btn run${busy === "one" ? " going" : ""}`}
@@ -1850,8 +1545,6 @@ The place the vehicle is flown from is the **control van/room**, written exactly
                   .filter(Boolean)
                   .join("\n")}
               >
-                {/* The four-character reference leads; the form code, the same on every copy
-                    of a kind, goes to the tooltip. */}
                 <b>
                   <i className="ref">{refOf(key, i)}</i>
                   {f.short}

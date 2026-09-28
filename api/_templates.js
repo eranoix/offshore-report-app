@@ -1,8 +1,3 @@
-/**
- * Versioned form templates, so a changed form can go live without a release.
- * An underscore module, not a handler, because the plan allows twelve
- * functions and all twelve are used; the routing sits in render.js.
- */
 import { createHash } from "node:crypto";
 import { db, isAdmin, storage } from "./_supabase.js";
 
@@ -10,12 +5,6 @@ const BUCKET = "offshore-report-templates";
 export const KINDS = ["witness", "observation", "knowledge", "feedback", "trip", "sed"];
 const ok = (kind) => KINDS.includes(String(kind || ""));
 
-/**
- * Which kinds are workbooks, so the file name and content type are never
- * assumed. Repeated rather than imported from src/engine/formkinds.js because a
- * serverless function reaches nothing the browser builds; scripts/sheeting.mjs
- * keeps the two lists in sync.
- */
 const SHEETS = ["sed"];
 export const isSheet = (kind) => SHEETS.includes(String(kind || ""));
 export const extOf = (kind) => (isSheet(kind) ? "xlsx" : "docx");
@@ -24,10 +13,6 @@ export const typeOf = (kind) =>
     ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-/**
- * What every form is on right now: version, file type, anchors and blanks.
- * Not the bytes, which are fetched one at a time only when the browser is stale.
- */
 export async function manifest() {
   const rows = await db(
     "offshore_report_templates_live?select=kind,updated_at,offshore_report_templates(id,version,sha256,size,anchors,blanks,wording,note,created_at,created_email)",
@@ -52,7 +37,6 @@ export async function manifest() {
   return out;
 }
 
-/** Every version of one form, newest first, for the page that shows them. */
 export async function versions(kind) {
   if (!ok(kind)) return [];
   const rows = await db(
@@ -61,7 +45,6 @@ export async function versions(kind) {
   return Array.isArray(rows) ? rows : [];
 }
 
-/** The bytes of one form, as they are stored. */
 export async function bytesOf(kind, version) {
   if (!ok(kind)) return null;
   const want = Number.isFinite(Number(version)) ? `&version=eq.${Number(version)}` : "";
@@ -76,15 +59,8 @@ export async function bytesOf(kind, version) {
   return { bytes: Buffer.from(await file.arrayBuffer()), sha256: row.sha256 };
 }
 
-/**
- * Keeps the editor's copy as the form's single draft. The document server saves
- * on its own schedule, so a save never publishes; going live stays a separate,
- * guarded step.
- */
 export async function holdDraft(kind, bytes) {
   if (!ok(kind)) return false;
-  /* replace: a form keeps exactly one draft, and without it the store refuses
-     every save after the first with a 409 that the editor never reports. */
   await storage(`${BUCKET}/drafts/${kind}.${extOf(kind)}`, {
     method: "POST",
     body: bytes,
@@ -94,7 +70,6 @@ export async function holdDraft(kind, bytes) {
   return true;
 }
 
-/** The draft of a form, or nothing if nobody has left one. */
 export async function draftOf(kind) {
   if (!ok(kind)) return null;
   try {
@@ -143,7 +118,6 @@ export async function keep(who, kind, bytes, { anchors, blanks, wording, note } 
   return row;
 }
 
-/** Which version everybody looks at. Going back is the same call. */
 export async function live(who, kind, version) {
   if (!ok(kind)) throw new Error("no such form");
   if (!isAdmin(who)) throw new Error("only an admin publishes a form");

@@ -4,10 +4,6 @@ import Pages from "../components/Pages";
 import { V } from "../engine/generator";
 import { inOrder } from "../engine/order";
 
-/**
- * The library: finished paperwork kept for the writing to learn from. A document is listed only to its
- * uploader and the administrator, and once handed over only the administrator can take it out.
- */
 const LIMIT = 4 * 1024 * 1024;
 const KINDS = ".pdf,.doc,.docx,.txt,.md,.csv,.rtf,.png,.jpg,.jpeg";
 
@@ -25,7 +21,6 @@ const isText = (r) =>
 const ext = (name) =>
   (name.includes(".") ? name.split(".").pop() : "file").slice(0, 4).toUpperCase();
 
-/** What a document is, in one word; the wall filters on these. */
 const family = (r) => (isImage(r) ? "scan" : isPdf(r) ? "pdf" : isText(r) ? "text" : "word");
 const FAMILIES = { scan: "Scans", pdf: "PDF", word: "Word", text: "Text" };
 
@@ -34,9 +29,6 @@ const SORTS = {
   oldest: { label: "Oldest", by: (a, b) => new Date(a.created_at) - new Date(b.created_at) },
   name: { label: "Name", by: (a, b) => a.name.localeCompare(b.name) },
   big: { label: "Largest", by: (a, b) => (b.size || 0) - (a.size || 0) },
-  /* The shelf sorted by what it is worth to the writing, so the files it
-     leans on come first and the ones it cannot read at all come last, where
-     they can be looked at and thrown out. */
   teaching: { label: "Teaches most", by: (a, b) => (b.passages || 0) - (a.passages || 0) },
   silent: { label: "Teaches nothing", by: (a, b) => (a.passages || 0) - (b.passages || 0) },
 };
@@ -57,7 +49,6 @@ export default function Library() {
   const [viewing, setViewing] = useState(null);
   const picker = useRef(null);
 
-  /* The server decides what this account is shown (everything for the admin, otherwise its own) and says which. */
   async function load(onlyMine = false) {
     try {
       const res = await fetch(`/api/library${onlyMine ? "?mine=1" : ""}`);
@@ -137,10 +128,6 @@ export default function Library() {
     load();
   }
 
-  /**
-   * Shares a document with everybody's writing (without showing it on their shelves), or takes it back.
-   * Per document, because a record naming a real person should not be shared.
-   */
   async function share(row, on) {
     const res = await fetch(`/api/library?id=${row.id}&shared=${on ? "1" : "0"}`, { method: "PATCH" });
     if (!res.ok) {
@@ -164,8 +151,6 @@ export default function Library() {
     if (viewing && gone.includes(viewing.id)) setViewing(null);
   }
 
-  /* One at a time, with a breath between: browsers drop downloads fired in the
-     same tick. */
   async function download(list) {
     for (const row of list) {
       const a = document.createElement("a");
@@ -275,8 +260,6 @@ export default function Library() {
               ) : null,
             )}
           </div>
-          {/* How to order the shelf. The menu itself runs most useful first, which
-              is an order of its own. */}
           <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Order" data-scale="">
             {Object.entries(SORTS).map(([k, s]) => (
               <option key={k} value={k}>
@@ -357,7 +340,6 @@ export default function Library() {
                     {[size(r.size || 0), when(r.created_at), everyone && !r.own ? r.user_email : null]
                       .filter(Boolean)
                       .join(" · ")}
-                    {/* What the writing can read in it: a file at nought is doing nothing and must say so. */}
                     <i className={`teaches${r.passages ? "" : " none"}`}>
                       {r.passages
                         ? `${r.passages} ${r.passages === 1 ? "passage" : "passages"}`
@@ -386,13 +368,11 @@ export default function Library() {
   );
 }
 
-/** A document viewed in place: the scan, the PDF, or the server-extracted words when the browser cannot show it. */
 function Viewer({ row, admin, onClose, onStep, onDownload, onRemove }) {
   const ref = useRef(null);
   const [words, setWords] = useState(null);
   const [paper, setPaper] = useState("");
   const [asWord, setAsWord] = useState("");
-  /* Why it could not be drawn, in words, instead of a screen that just waits. */
   const [whyNot, setWhyNot] = useState("");
 
   useEffect(() => {
@@ -400,8 +380,6 @@ function Viewer({ row, admin, onClose, onStep, onDownload, onRemove }) {
     if (el && !el.open) el.showModal();
   }, []);
 
-  /* A .docx is laid out by an engine that reads Word rather than redrawn in the browser; binary .doc has
-     no such reader and falls back to the text the server pulled out. */
   useEffect(() => {
     if (!isWord(row)) {
       setAsWord("");
@@ -409,12 +387,9 @@ function Viewer({ row, admin, onClose, onStep, onDownload, onRemove }) {
     }
     let live = true;
     let address = "";
-    /* Moving to the next document cancels the one being drawn; that is not a
-       document that failed. */
     const stop = new AbortController();
     setAsWord("reading");
     setWhyNot("");
-    /* Never leave the screen waiting: give up after a timeout and say so. */
     const gaveUp = setTimeout(() => {
       if (!live) return;
       setWhyNot("It is taking longer than it should. The download below still works.");
@@ -507,7 +482,6 @@ function Viewer({ row, admin, onClose, onStep, onDownload, onRemove }) {
       </header>
 
       <div className={`look${isPdf(row) || asWord === "shown" ? " paper" : ""}`}>
-        {/* Say plainly why the document is not on screen, instead of falling silently through to the text. */}
         {whyNot && (
           <p className="note bad">
             {whyNot}

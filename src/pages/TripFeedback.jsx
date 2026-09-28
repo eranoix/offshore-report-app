@@ -36,21 +36,17 @@ import "../styles/form.css";
 
 const PROFILE_KEY = "trip-feedback:profile";
 const DOC_KEY = "trip-feedback:doc";
-const WORK_KEY = "trip-feedback:work"; // the scores and the wording, so a reload changes nothing
+const WORK_KEY = "trip-feedback:work";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
 
-/* Under the account, never under the browser: see engine/vault.js. Nothing
-   stored means the fallback, exactly as before — an empty object is not the
-   same answer as "nothing here". */
 function readLocal(key, fallback) {
   const held = readMine(key, null);
   return held && typeof held === "object" ? { ...fallback, ...held } : fallback;
 }
 const writeLocal = (key, value) => writeMine(key, value);
 
-/** A shared link carries the whole document in the hash — nothing is uploaded. */
 function readHash() {
   try {
     const m = location.hash.match(/^#d=(.+)$/);
@@ -79,12 +75,9 @@ const BLANK_DOC = {
 };
 
 const shared = readHash();
-/* Restores what was on the paper last time, so a reload does not reroll the
-   scores or rewrite the text. */
 
 
 export default function TripFeedback() {
-  /* Read inside the page, never at import time: the account is known by then. */
   const saved = shared ? null : readLocal(WORK_KEY, null);
   const [profile, setProfile] = useState(() =>
     readLocal(PROFILE_KEY, { vessels: [], supervisors: [], crews: [] }),
@@ -113,21 +106,16 @@ export default function TripFeedback() {
   const [criteria, setCriteria] = useState(first.criteria);
   const [blocks, setBlocks] = useState(first.blocks);
   const ctxRef = useRef(first.ctx);
-  /* Which supervision step could not run on the last write, if any. */
   const missedRef = useRef("");
 
-  /* An A4 sheet is 210mm wide; a phone is not. Measure the room we have and
-     scale the paper to it, so it is always whole and never sideways-scrolled. */
   const stageRef = useRef(null);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const fit = () => {
-      // Measure from the window, never from the stage: the stage grows with the
-      // sheet, so measuring it would feed the scale back into itself.
       const left = stage.getBoundingClientRect().left;
       const room = document.documentElement.clientWidth - left - 26;
-      const sheet = 794; // 210mm at 96dpi
+      const sheet = 794;
       stage.style.setProperty("--sheet-scale", String(Math.min(1, Math.max(0.3, room / sheet))));
     };
     fit();
@@ -144,25 +132,18 @@ export default function TripFeedback() {
   const sigRef = useRef(null);
   const attempts = useRef(0);
 
-  // The AI is on whenever the page can reach it, and quietly off when it cannot.
   useEffect(() => {
     probe().then(setAiUp);
     return onAvailability(setAiUp);
   }, []);
 
   useEffect(() => writeLocal(DOC_KEY, doc), [doc]);
-  /* The sheet as it stands, kept between visits: scores, wording, what is
-     locked and what was typed by hand. Nothing is rolled again on its own. */
   useEffect(
     () => writeLocal(WORK_KEY, { preset, criteria, blocks, locked, edited }),
     [preset, criteria, blocks, locked, edited],
   );
   useEffect(() => writeLocal(PROFILE_KEY, profile), [profile]);
 
-  /* The account carries the lists between devices; the browser copy is what
-     answers while it is still loading, or when there is no signal. Once the
-     account has answered, it is the truth — a union would make forgetting a
-     name impossible, since the browser would put it straight back. */
   useEffect(() => {
     if (!cloudOn()) return;
     getProfile()
@@ -190,8 +171,6 @@ export default function TripFeedback() {
         .catch(() => {});
   }, []);
 
-  /* The form has two pages. If the wording runs past the end of page one,
-     shorten it and try again before complaining. */
   useLayoutEffect(() => {
     if (!page1Ref.current || !sigRef.current) return;
     const overflow =
@@ -228,7 +207,6 @@ export default function TripFeedback() {
 
   function apply(result) {
     ctxRef.current = result.ctx;
-    // Bank used up for these scores: ask the AI rather than recycle an old line.
     if (result.exhausted?.length && aiUp) {
       result.exhausted.slice(0, 4).forEach((k) => setTimeout(() => aiComment(k), 0));
     }
@@ -281,7 +259,6 @@ export default function TripFeedback() {
     touch();
   }
 
-  /** A new line for one criterion, written around everything already used. */
   async function aiComment(key) {
     if (!aiUp) return;
     setAiBusy(key);
@@ -295,7 +272,7 @@ export default function TripFeedback() {
         notes: doc.notes,
       });
       setCriteria((c) => ({ ...c, [key]: { score, comment: text } }));
-      setEdited((e) => ({ ...e, [key]: true })); // written on purpose: do not overwrite it
+      setEdited((e) => ({ ...e, [key]: true }));
       setGeneration((g) => g + 1);
       setWarning("");
       touch();
@@ -306,19 +283,11 @@ export default function TripFeedback() {
     }
   }
 
-  /**
-   * The same two readings the evidence forms get. A machine gives itself away
-   * in the words it reaches for, which can be listed, and in the shape of what
-   * it writes, which takes a reader; and nothing may be asserted that the
-   * supervisor did not supply.
-   */
   async function asWritten(text, kind) {
     let out = String(text || "").trim();
     if (!out) return out;
     const what =
       kind === "crew" ? "the crew member's own reply on a trip feedback" : "a supervisor's trip feedback";
-    /* A check that cannot run has not passed: it is reported, never treated as
-       cleared. */
     let unchecked = "";
     for (let round = 0; round < 2; round += 1) {
       const heard = tells(out);
@@ -329,8 +298,6 @@ export default function TripFeedback() {
               return { human: true, faults: [] };
             })
           : { human: true, faults: [] };
-      /* Only what the supervisor wrote counts as a record: a trip feedback is
-         about the man, not the campaign's scope. */
       const made = doc.notes?.trim()
         ? await unsupported({
             text: out,
@@ -344,8 +311,6 @@ export default function TripFeedback() {
         ...heard,
         ...(judged.human ? [] : judged.faults),
         ...made.map((q) => `Nothing was supplied to support this — take it out: “${String(q).slice(0, 120)}”`),
-        /* The form asks how he worked, not what he worked on. A named job is
-           the drift this document is most prone to, so it is named back. */
         ...(jobWords(out).length
           ? [
               `This form is about the man, not the job. Take out the work itself — ${jobWords(out)
@@ -372,7 +337,6 @@ export default function TripFeedback() {
     return out;
   }
 
-  /** Rewrites both prose blocks, keeping the facts and the scores. */
   async function aiImprove() {
     if (!aiUp) return;
     missedRef.current = "";
@@ -401,8 +365,6 @@ export default function TripFeedback() {
     }
   }
 
-  /** One block at a time: rewrite what is there, or write it again from the
-   *  scores and whatever you typed under "What actually happened". */
   async function aiBlock(kind, mode = "improve") {
     if (!aiUp) return;
     missedRef.current = "";
@@ -443,10 +405,6 @@ export default function TripFeedback() {
     touch();
   }
 
-  /* A phrase is spent when the document goes out — printed, saved, downloaded
-     or shared — not while you are still trying presets. Playing with the form
-     costs the bank nothing; issuing a document takes its phrases out of it for
-     good, so no two of your documents can read the same. */
   function spendPhrases() {
     const fromCriteria = KEYS.map((k) => criteria[k]?.from).filter(Boolean);
     remember(...fromCriteria, ...(blocks.from || []));
@@ -472,10 +430,6 @@ export default function TripFeedback() {
 
   const payload = () => ({ doc, preset, criteria, blocks });
 
-  /**
-   * The trip feedback as the company's .docx, filled by the same engine as the
-   * CAAP forms. It differs from the on-screen sheet, and the page says so.
-   */
   const asWord = async () => {
     rememberNames();
     spendPhrases();
@@ -486,8 +440,6 @@ export default function TripFeedback() {
     return { bytes, name: formName("trip", doc) };
   };
 
-  /** Hands a file to the browser and takes the link away afterwards, never
-      before — revoking it on the next line cancels the download half-written. */
   const handOver = (blob, name) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -510,8 +462,6 @@ export default function TripFeedback() {
     }
   }
 
-  /** The Word file as it prints, drawn by the engine that composes it — not by
-      this browser. It is what the other side will see. */
   async function wordPdf() {
     setWordState("Drawing…");
     try {
@@ -548,8 +498,6 @@ export default function TripFeedback() {
       supervisor_comments: blocks.supervisor,
       crew_comments: blocks.crew,
     };
-    /* The link has to be in the document to be clickable, and the blob has to
-       outlive the click. */
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
     );
@@ -559,8 +507,6 @@ export default function TripFeedback() {
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
-    // Taking the link away, or the blob with it, while the browser is still
-    // reading cancels the download half-written. Both go later.
     setTimeout(() => {
       a.remove();
       URL.revokeObjectURL(url);
@@ -657,8 +603,6 @@ export default function TripFeedback() {
         <p className="tip">
           Click any comment on the sheet to rewrite it by hand. Signatures are left blank.
         </p>
-        {/* The two outputs are not the same document, and finding that out from
-            a crewing department is worse than reading it here. */}
         <p className="tip quiet">
           Print gives you this sheet. Word fills the company's own form, which is a
           later revision: twelve criteria instead of eleven — the twelfth,

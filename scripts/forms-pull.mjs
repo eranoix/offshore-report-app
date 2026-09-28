@@ -1,10 +1,3 @@
-/**
- * Packs the published forms into a module the offline build compiles in, since
- * the folder copy has no server to ask. With nothing published beyond the
- * company's own forms it writes an empty one, as those are already in the file.
- *
- *     node scripts/forms-pull.mjs && vite build --mode offline
- */
 import { writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,14 +41,11 @@ const rows = await rest(
 });
 if (!rows) { write({}, today, "The store could not be reached."); process.exit(0); }
 
-/* Workbooks are not packed: nothing fills one and the offline copy has no editor
-   to open one in, so it would be dead weight compiled into a single file. */
 const SHEETS = ["sed"];
 
 const packed = {};
 for (const row of rows) {
   const t = row.offshore_report_templates;
-  /* Version 0 is the company's own form, which is already compiled in. */
   if (!t || t.version === 0 || !t.path) continue;
   if (SHEETS.includes(row.kind)) { console.log(`${row.kind.padEnd(12)} is a workbook — not packed`); continue; }
   const file = await fetch(`${BASE}/storage/v1/object/offshore-report-templates/${encodeURI(t.path)}`, {

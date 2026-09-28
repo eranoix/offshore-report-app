@@ -1,14 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The task list, read out of the real paperwork. For each level it pulls the library passages
- * that describe work, asks for the jobs they record, then holds the list against the same
- * passages over four more passes. Only what survives every pass ships.
- *
- *   node scripts/tasks.mjs            # write src/engine/tasks.json
- *   node scripts/tasks.mjs --dry      # print what it would write
- *
- * A maintenance tool, not part of the build: the list is checked in.
- */
 import { readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
 
@@ -20,8 +10,6 @@ const UPSTREAM = new URL(process.env.AI_UPSTREAM || "https://203.0.113.10:9443/v
 const MODEL = process.env.AI_MODEL || "claude-sonnet-4-6";
 const PASSES = 5;
 
-/* The keys come from the environment, never from a file in the repository:
-   read here and handed straight to the request. */
 const secret = (name) => {
   const value = process.env[name];
   if (!value) {
@@ -33,8 +21,6 @@ const secret = (name) => {
 const SERVICE = secret("SUPABASE_SERVICE_ROLE_KEY");
 const AI_KEY = secret("AI_KEY");
 
-/* The levels the site offers, and the CAAP discipline each one is assessed
-   against — the same pairing as engine/witness.js. */
 const LEVELS = [
   { level: "ROV Pilot Technician", caap: "ROV Pilot Technician" },
   { level: "ROV Submersible Technician", caap: "ROV Sub-Engineer" },
@@ -42,9 +28,6 @@ const LEVELS = [
   { level: "ROV Superintendent", caap: "ROV Superintendent" },
 ];
 
-/* The groups the panel and engine/bridge.js already know. Inventing new ones
-   would break the line from a task to the parts of the scheme it evidences,
-   so the sorting picks from this list and nothing else. */
 const GROUPS = Object.keys(
   JSON.parse(readFileSync(`${ROOT}/src/engine/tasks.json`, "utf8")).groups,
 );
@@ -108,10 +91,6 @@ function once(system, user, { maxTokens = 1400, temperature = 0 } = {}) {
   });
 }
 
-/**
- * Ask the shared upstream. Back-to-back calls make a rate limit the expected answer, so it
- * waits the time the refusal names, a little more each go.
- */
 async function ask(system, user, opts = {}) {
   let wait = 4000;
   for (let go = 0; go < 8; go += 1) {
@@ -131,14 +110,6 @@ async function ask(system, user, opts = {}) {
 }
 
 const JSON_ONLY = `Answer with JSON only: {"tasks":["...","..."]}. Nothing else.`;
-/**
- * What a task has to be.
- *
- * It is the subject of a document — it prints on the form's own header line and
- * it is what the panel shows when it says what a testimony is about. So it
- * names the job the way a maintenance log or a testimony header names it, not
- * the way somebody would describe their day.
- */
 const SHAPE = `Each task NAMES a job in two to seven words, as a heading — "LARS six-monthly maintenance", "Hydraulic fault finding on the TMS", "Tether re-termination", "Toolsled change-out". Never a sentence, never the past tense, never "Piloted the…" or "Carried out the…". No competences, no qualities, no headings from the framework, no person's name, no vessel, no project, no date, no client.`;
 
 const clean = (list) =>
@@ -147,7 +118,6 @@ const clean = (list) =>
       (Array.isArray(list) ? list : [])
         .map((t) => String(t || "").replace(/\s+/g, " ").trim().replace(/\.$/, ""))
         .filter((t) => t.length > 5 && t.length < 70 && /[a-z]/.test(t))
-        /* Two spellings of one job are one job. */
         .map((t) => [t.toLowerCase(), t]),
     ).values(),
   ].slice(0, 80);
@@ -187,8 +157,6 @@ async function passages(uid, hunts) {
   return [...seen.values()];
 }
 
-/** The records in batches the reading can actually hold, so every passage gets read rather
- *  than cut to one budget of characters. */
 function batches(papers, budget = 14000) {
   const out = [];
   let now = [];
@@ -219,9 +187,6 @@ async function harvest(level, uid) {
   const lots = batches(papers);
   process.stdout.write(`\n${level.level}\n  ${papers.length} passages in ${lots.length} batches\n`);
 
-  /* Read everything: each batch gives up the jobs it records, and the union is
-     what this level does. Grounding happens here — nothing enters the list
-     that did not come out of a passage. */
   let tasks = [];
   for (const [n, lot] of lots.entries()) {
     const got = parse(
@@ -235,9 +200,6 @@ async function harvest(level, uid) {
     process.stdout.write(`  batch ${n + 1}/${lots.length} — ${tasks.length} tasks so far\n`);
   }
 
-  /* Then the tidying, which is about the list rather than the records: the
-     same job said four ways is one job, and a phrase that names nothing in
-     particular is not a job at all. */
   for (let pass = 2; pass <= PASSES; pass += 1) {
     const corrected = parse(
       await ask(
@@ -250,8 +212,6 @@ async function harvest(level, uid) {
     process.stdout.write(`  tidy ${pass - 1}/${PASSES - 1} — ${tasks.length} tasks\n`);
   }
 
-  /* The task words never travel: it answers with a group per line number, so
-     nothing can come back reworded and fail to match what it was given. */
   const sorted = parse(
     await ask(
       `You put each numbered ROV task into one of the groups given. Answer with JSON only: {"of":{"1":"Group name","2":"Group name"}} — one entry per number, nothing else. Use ONLY these group names: ${GROUPS.map((g) => `"${g}"`).join(", ")}.`,
@@ -269,7 +229,6 @@ async function harvest(level, uid) {
     (groups[unit] = groups[unit] || []).push(t);
     placed.add(t);
   });
-  /* A task the sorting dropped is still a task the records showed. */
   const rest2 = tasks.filter((t) => !placed.has(t));
   if (rest2.length) {
     const home = GROUPS.find((g) => groups[g]) || GROUPS[0];
@@ -279,8 +238,6 @@ async function harvest(level, uid) {
   return { order: GROUPS.filter((g) => groups[g]?.length), groups, tasks };
 }
 
-/* Nothing personal may ship. The prompts forbid it; this is the check that the
-   prompts were obeyed, and it refuses to write rather than warn. */
 const PERSONAL = [
   /\b(19|20)\d\d\b/,
   /\bseven\s+\w+\b/i,
@@ -296,10 +253,6 @@ function refuse(list) {
 const [{ user_id: uid }] = await rest("offshore_report_library?select=user_id&limit=1");
 const out = { roles: {}, groups: {} };
 const seenGroups = new Map();
-/**
- * Which rungs of the ladder a job belongs to: the level whose own paperwork records it being done.
- * Kept as the harvest goes, because after the merging the wording has moved on.
- */
 const rungs = new Map();
 const note = (t, level) => {
   const k = t.toLowerCase();
@@ -323,18 +276,12 @@ for (const level of LEVELS) {
     seenGroups.set(g, merged);
   }
 }
-/* Four levels read separately produce the same job four ways — "Shift handover
-   documentation", "…and briefing", "…and relief crew briefing", "Shift handover
-   notes completion". Each level's own passes cannot see that; this one can. */
 const levelsOf = (list) => [...new Set(list.flatMap((t) => [...(rungs.get(t.toLowerCase()) || [])]))];
 for (const [g, list] of seenGroups) {
   if (list.length < 3) {
     out.groups[g] = list.map((text) => ({ text, levels: levelsOf([text]) }));
     continue;
   }
-  /* It answers with the line numbers it merged, so a job that four levels
-     worded four ways keeps all four of their names — the merged wording
-     cannot be matched back to what it replaced, but the numbers can. */
   const merged = parse(
     await ask(
       `You are merging a numbered list of ROV tasks that four separate readings produced, so the same job appears more than once worded differently. Answer with JSON only: {"tasks":[{"text":"the clearest single wording","was":[1,4]}]}. Every number appears in exactly one entry. Change no wording except to pick the clearest of the ones given. ${SHAPE}`,
@@ -357,8 +304,6 @@ for (const [g, list] of seenGroups) {
   if (out.groups[g].length < list.length)
     process.stdout.write(`  ${g}: ${list.length} → ${out.groups[g].length}\n`);
 }
-/* A job belongs in one group. Two levels can file it differently; the first
-   group to claim it keeps it, and it keeps every level that does it. */
 const claimed = new Map();
 for (const g of Object.keys(out.groups)) {
   out.groups[g] = out.groups[g].filter((t) => {
@@ -373,7 +318,6 @@ for (const g of Object.keys(out.groups)) {
   });
   if (!out.groups[g].length) delete out.groups[g];
 }
-/* A group a level has no job in is not that level's group. */
 for (const role of Object.keys(out.roles))
   out.roles[role] = out.roles[role].filter((g) => out.groups[g]?.some((t) => t.levels.includes(role)));
 

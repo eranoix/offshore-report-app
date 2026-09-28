@@ -1,5 +1,3 @@
-/** Writes CHANGELOG.md and ROADMAP.md from the JSON the app itself reads,
- *  so the repo and the release notes panel can never drift apart. */
 import { readFileSync, writeFileSync } from "node:fs";
 
 const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), "utf8"));

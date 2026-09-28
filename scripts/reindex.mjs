@@ -1,11 +1,3 @@
-/**
- * Re-indexes the library: re-cuts every donation from its bytes on the storage
- * disk with the upload's own code (imported, so the two cannot drift) and
- * replaces that document's passages. Runs on the server holding the files; each
- * document is done on its own, so one unreadable file leaves the rest untouched.
- *
- *   LIBRARY_DIR=<storage volume>/<bucket> node scripts/reindex.mjs [--dry] [--fast]
- */
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -13,14 +5,9 @@ import { promisify } from "node:util";
 import { readWords, passages } from "../api/library.js";
 
 const run = promisify(execFile);
-/* Where the storage service keeps the library bucket's files on disk. Not
-   needed with --fast, which re-cuts the words already stored. */
 const DISK = process.env.LIBRARY_DIR || "";
 const SEP = "|~|";
 const dryRun = process.argv.includes("--dry");
-/* Reading a file again means drawing every page of a scan and reading it
-   back — minutes of work for a result already stored. When only the cutting
-   into passages has changed, the words kept last time are the same words. */
 const fromStored = process.argv.includes("--fast");
 if (!DISK && !fromStored) {
   console.error("set LIBRARY_DIR to the library bucket's directory on the storage disk, or pass --fast");
@@ -39,8 +26,6 @@ const quote = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 const rows = await sql(
   fromStored
-    /* The stored words run to many lines, and psql answers a row per line.
-       Sent as base64 on one line they arrive whole. */
     ? "select id, user_id, path, kind, name, replace(encode(convert_to(coalesce(text_content, ''), 'UTF8'), 'base64'), E'\\n', '') from public.offshore_report_library order by name;"
     : "select id, user_id, path, kind, name from public.offshore_report_library order by name;",
 );

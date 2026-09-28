@@ -1,10 +1,3 @@
-/**
- * Checks every dashboard panel fits its screen: nothing hidden (scrollHeight equals clientHeight), nothing
- * painted past its bottom edge, nothing painted over anything else. The first alone passes a squeezed grid
- * or flex child, which draws over its neighbour instead of overflowing.
- *
- *   OFFSHORE_REPORT_URL=... OFFSHORE_REPORT_EMAIL=... OFFSHORE_REPORT_PASSWORD=... node scripts/fits.mjs
- */
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import WebSocket from "ws";
@@ -14,8 +7,6 @@ const EMAIL = process.env.OFFSHORE_REPORT_EMAIL;
 const PASSWORD = process.env.OFFSHORE_REPORT_PASSWORD;
 const DEBUG = 9488;
 
-/* Two real screens (13" laptop, 24" monitor) plus the windows that broke it (1273x671 is a laptop at 150%).
-   The board must never stack to one column, so this also asserts it stays two by two on every screen. */
 const SCREENS = [[1920, 1080], [1828, 900], [1600, 1100], [1440, 900], [1273, 671]];
 const MODES = [[], ["Year"], ["UK salaried"], ["Year", "UK salaried"], ["tab:Agenda"], ["tab:5 years"], ["tab:Pay"], ["UK salaried", "tab:Pay"]];
 
@@ -56,8 +47,6 @@ const say = (ok, label, got = "") => {
   if (!ok) fails.push(label);
 };
 
-/* A desktop, told so. Headless has no mouse, `hover: none` matches, and the
-   layout that answers is the one built for a phone. */
 await call("Emulation.setEmulatedMedia", {
   features: [{ name: "hover", value: "hover" }, { name: "pointer", value: "fine" },
     { name: "any-hover", value: "hover" }],
@@ -74,7 +63,6 @@ await evaluate(
 );
 await wait(6500);
 
-/** What every panel on screen is doing with the space it was given. */
 const LOOK = `(()=>{
   const out = [];
   document.querySelectorAll('.rota-body').forEach((b) => {
@@ -116,8 +104,6 @@ for (const [w, h] of SCREENS) {
     await call("Page.navigate", { url: `${SITE}/rotation` });
     await wait(7500);
     for (const label of mode) {
-      /* "tab:" is one of the calendar quadrant's own views; anything else is
-         a button in the header. */
       const [where, name] = label.startsWith("tab:") ? [".rota-tabs button", label.slice(4)] : [".rota-head button", label];
       await evaluate(
         `[...document.querySelectorAll(${JSON.stringify(where)})]`
@@ -129,9 +115,6 @@ for (const [w, h] of SCREENS) {
     const panels = JSON.parse(await evaluate(LOOK) || "[]");
     if (!panels.length) { say(false, `${where}: the dashboard is on screen`, "no panels"); continue; }
 
-    /* Three pixels of slack, and no more: a panel's scrollHeight is a whole
-       number while its contents are not, so a panel that fits exactly reports
-       one or two pixels of nothing. Twenty is a row of figures. */
     const shape = JSON.parse(await evaluate(`JSON.stringify((()=>{
       const q=[...document.querySelectorAll('.rota-q')].map(e=>e.getBoundingClientRect());
       return { cols: new Set(q.map(r=>Math.round(r.left))).size, rows: new Set(q.map(r=>Math.round(r.top))).size,
@@ -140,9 +123,6 @@ for (const [w, h] of SCREENS) {
     say(shape.cols === 2 && shape.rows === 2 && shape.page <= 2,
       `${where}: four quadrants, two by two, and the page does not scroll`,
       `${shape.cols}×${shape.rows}, page +${shape.page}px`);
-    /* The header is one line, and no button in it has broken its own words
-       over two: a header that wraps takes a row of figures from every panel,
-       and a button that wraps is a button nobody can read. */
     const head = JSON.parse(await evaluate(`JSON.stringify((()=>{
       const h=document.querySelector('.rota-head');
       const tall=[...h.querySelectorAll('button, .rota-count')].filter(b=>b.getBoundingClientRect().height>44).map(b=>(b.innerText||b.title||'').trim().slice(0,20));
@@ -150,8 +130,6 @@ for (const [w, h] of SCREENS) {
     })())`) || "{}");
     say(head.h <= 70 && !head.tall.length, `${where}: the header is one line, with every button on one line`,
       `${head.h}px${head.tall.length ? ` · wrapped: ${head.tall.join(", ")}` : ""}`);
-    /* Back, Today and Forward are whole and pressable: a rule for another button once shrank them to 28 px
-       while every other check passed. */
     const steps = JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('.rota-head .rota-step button')].map((b)=>{
       const r=b.getBoundingClientRect(); const g=b.parentElement.getBoundingClientRect();
       const hit=document.elementFromPoint(r.left+r.width/2, r.top+r.height/2);
@@ -171,7 +149,6 @@ for (const [w, h] of SCREENS) {
   }
 }
 
-/* And forward turns the month, and back turns it back. */
 const monthNow = () => evaluate(`document.querySelector('.rota-q h2')?.innerText`);
 const was = await monthNow();
 await evaluate(`document.querySelector('.rota-head .rota-step button:last-child').click()`);
@@ -181,7 +158,6 @@ await evaluate(`document.querySelector('.rota-head .rota-step button:first-child
 await wait(500);
 say(next && next !== was && (await monthNow()) === was, "forward goes to the next month, and back returns", `${was} → ${next}`);
 
-/* The page itself never scrolls sideways, whatever the panels are doing. */
 const wide = Number(await evaluate(
   `document.documentElement.scrollWidth - document.documentElement.clientWidth`));
 say(wide <= 0, "and the page does not run off the side", `${wide}px`);

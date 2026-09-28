@@ -1,5 +1,3 @@
-/** Change the password. The current one is checked against the account server
- *  first, so a stolen session alone cannot lock you out of your own site. */
 import { requireSession } from "./_supabase.js";
 
 export default async function handler(req, res) {

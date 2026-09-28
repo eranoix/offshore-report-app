@@ -1,19 +1,9 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The pack panel, driven in a real browser against the real build.
- *
- *   npm run build && node scripts/pack.mjs
- *
- * It first checks the served bundle against the one on disk: a service worker
- * can serve a stale build, and every result after that would be about old code.
- */
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import WebSocket from "ws";
 import { freePort } from "./port.mjs";
 
-/* A fresh port each run: an old server left on a shared port holds an old
-   file map, so the browser would run a build no longer on disk. */
 const PORT = await freePort();
 const DEBUG = await freePort();
 const site = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort", "--host", "127.0.0.1"],
@@ -24,7 +14,6 @@ const chrome = spawn("google-chrome",
    "--remote-allow-origins=*", "--window-size=1500,1050", `--user-data-dir=${PROFILE}`,
    "--disable-features=AutofillServerCommunication,AutofillEnableAccountWalletStorage",
    "about:blank"], { stdio: "ignore" });
-/* npx spawns vite as a child of its own: killing the group, not the shell. */
 const stop = (c) => {
   try { process.kill(-site.pid); } catch { /* already gone */ }
   chrome.kill();
@@ -108,8 +97,6 @@ const refs = (await text(".copies li em")).join(" ").split(/\s+/).filter(Boolean
 say(JSON.stringify(refs) === JSON.stringify(["WT01", "WT02", "WT03", "OT01", "QU01", "FB01"]),
   "six documents, referenced the way his paperwork does", refs.join(" "));
 say((await text(".tab-bar button"))[0].includes("6"), "and the tab says how many");
-/* The stepper does not wander: one column for the labels, one for the
-   steppers, and the references take what is left. */
 const steppers = await evalIn(() =>
   [...document.querySelectorAll(".copies .step")].map((s) => Math.round(s.getBoundingClientRect().left)),
 );
@@ -120,7 +107,6 @@ await clickText(".tab-bar button", "Tasks");
 await wait(400);
 const lens = await text(".lens button");
 say(lens.length === 7 && lens[0] === "All 6", "the lens offers all six and each one", lens.join(" "));
-/* The task book ships grouped and shut, the same as the scheme's sections. */
 const shutGroups = await count(".unit");
 const rowsWhenShut = await count(".mark-row");
 say(shutGroups > 1 && rowsWhenShut === 0, "the task groups arrive collapsed",
@@ -128,8 +114,6 @@ say(shutGroups > 1 && rowsWhenShut === 0, "the task groups arrive collapsed",
 await click(".unit-open", 0);
 await wait(300);
 say((await count(".mark-row")) > 0, "and a group opens when pressed", `${await count(".mark-row")} rows`);
-/* The name only: the row also carries what the task would close, which is not
-   part of what it is called. */
 const firstTask = await evalIn(() =>
   (document.querySelector(".mark-row .mark-name")?.childNodes[0]?.textContent || "").trim(),
 );
@@ -145,12 +129,10 @@ say(on === "WT02", "marking sticks", on);
 const badge = await text(".tab-bar button");
 say(badge[1].startsWith("Tasks") && badge[1].includes("1"), "the Tasks tab counts it", badge[1]);
 
-/* One press puts a whole group on one document — and says which. */
 const allLabel = await evalIn(() => document.querySelector(".unit-all").textContent.replace(/\s+/g, " ").trim());
 say(/^All WT01$/.test(allLabel), "the bulk button names the document it writes to", allLabel);
 await evalIn(() => [...document.querySelectorAll(".lens button")].find((b) => b.textContent.trim() === "WT03").click());
 await wait(400);
-/* The group stays as it was left; open it only if the lens shut it. */
 if ((await count(".unit .mark-row")) === 0) {
   await click(".unit-open", 0);
   await wait(300);
@@ -170,11 +152,8 @@ say((await evalIn(() => document.querySelectorAll(".unit .tick.on").length)) ===
 await evalIn(() => [...document.querySelectorAll(".lens button")].find((b) => b.textContent.trim() === "All 6").click());
 await wait(400);
 
-/* The few tasks that, together, would close what nothing covers yet. */
 const lit = await evalIn(() => {
   const note = document.querySelector(".level-note.lit")?.innerText.replace(/\s+/g, " ") || "";
-  /* The name and what it would close are read apart: a long name can overflow
-     and take the count with it. */
   const rows = [...document.querySelectorAll(".mark-row.closes")].map(
     (r) => r.querySelector(".mark-name em.would")?.textContent.replace(/\s+/g, " ").trim() || "",
   );
@@ -190,9 +169,6 @@ say(lit.note.includes("would close"), "the panel says how many would close what 
 say(lit.rows.length > 0, "the tasks that would close something are lit", `${lit.rows.length} of ${lit.all} showing`);
 say(lit.rows.every((r) => /would close \d/.test(r)), "and each says what it would answer",
   lit.rows[0] || "(none)");
-/* Two answers: what would help, and the few that would finish it. The star
-   set is spread over every group, so it is counted from the line that speaks
-   for the whole list rather than from the one group that happens to be open. */
 const finishing = Number(lit.note.match(/The (\d+) marked/)?.[1] ?? -1);
 say(finishing > 0 && finishing < lit.helping, "and the few that would finish it are marked apart",
   `${finishing} of ${lit.helping} that help`);
@@ -203,7 +179,6 @@ const barSaid = await evalIn(() =>
 say(/1 task/.test(barSaid[1]) && /empty/.test(barSaid[0]), "only the marked document carries it",
   barSaid.slice(0, 3).join(" | "));
 
-/* A task brings what it proves: the areas move without anyone opening them. */
 const brought = await evalIn(() => {
   const tab = (n) => [...document.querySelectorAll(".tab-bar button")].find((b) => b.textContent.startsWith(n));
   return { areas: tab("Areas").textContent.trim() };
@@ -211,8 +186,6 @@ const brought = await evalIn(() => {
 say(/Areas\d+\/\d+/.test(brought.areas.replace(/\s/g, "")) && !/^Areas0\//.test(brought.areas.replace(/\s/g, "")),
   "marking a task marks what it proves", brought.areas);
 
-/* Taking off what a task brought must stay off — it is not held in a list,
-   so removing it cannot be done by removing it. */
 await clickText(".tab-bar button", "Areas");
 await wait(500);
 await evalIn(() => [...document.querySelectorAll(".lens button")].find((b) => b.textContent.trim() === "WT02").click());
@@ -224,7 +197,6 @@ await evalIn(() => document.querySelector(".unit .tick.on")?.click());
 await wait(400);
 const after = await evalIn(() => document.querySelectorAll(".unit .tick.on").length);
 say(after === before - 1, "one the task brought can be taken off", `${before} → ${after}`);
-/* Now off the task and on again: what was taken off by hand does not return. */
 await clickText(".tab-bar button", "Tasks");
 await wait(500);
 await evalIn(() => {
@@ -248,7 +220,6 @@ say(back === after, "and stays off when the task comes and goes", `${after} → 
 
 await clickText(".tab-bar button", "Areas");
 await wait(400);
-/* The lens is a toggle: pressing the one already chosen puts it back to all. */
 await evalIn(() => {
   const now = document.querySelector(".lens button.on")?.textContent.trim();
   if (now !== "WT02") [...document.querySelectorAll(".lens button")].find((b) => b.textContent.trim() === "WT02").click();
@@ -262,7 +233,6 @@ await click(".suggest button");
 await wait(400);
 const opened = await count(".unit .mark-list");
 say(opened >= 1, "the offer opens them", `${opened} open`);
-/* The count as it stands right now, not as it stood several steps ago. */
 const justBefore = (await text(".tab-bar button"))[2];
 await evalIn(() => document.querySelector(".unit .mark-list .tick:not(.on)")?.click());
 await wait(400);
@@ -309,12 +279,8 @@ const stage = await evalIn(() => ({
 say(/^WT02/.test(stage.on || ""), "the page moved to WT02", stage.on);
 const shown = [...stage.fields, stage.words].join(" | ");
 say(shown.includes("Pat Ellis"), "the form shows that document's witness");
-/* The task is printed in the form's own header, which the layout service
-   draws; offline the preview shows the blank with the fields over it. What
-   can be proved here is that each document's own areas reach the stage. */
 say(/\d+ criteri/.test(stage.bar[1]) && /empty/.test(stage.bar[0]) && /empty/.test(stage.bar[2]),
   "each document's own count reaches the page", stage.bar.slice(0, 3).join(" | "));
-/* All five documents must fit in the bar. */
 const barFits = await evalIn(() => {
   const bar = document.querySelector(".doc-bar");
   return { over: bar.scrollWidth - bar.clientWidth, n: bar.children.length };
@@ -358,8 +324,6 @@ say(panelSays.every(([, v], n) => Boolean(v)) && new Set(panelSays.map((x) => x[
   "six documents, six different signers in the panel",
   panelSays.map(([r, v]) => `${r}=${v.split(" ")[0]}`).join(" "));
 
-/* And now the page itself, document by document: the overlay is filled from
-   what the document carries, so it is the panel's answer or it is nothing. */
 for (const [ref, who] of panelSays) {
   await evalIn((r) => {
     const b = [...document.querySelectorAll(".doc-bar button")].find((x) => x.textContent.startsWith(r));
@@ -427,8 +391,6 @@ say(roomy && roomy.boxOver <= 1, "so the box has nothing to scroll", `${roomy?.b
 say(roomy && roomy.lineOver <= 1, "and a long name closes up instead of scrolling the line",
   `${roomy?.lineOver}px hidden at ${roomy?.shrank}px`);
 
-/* The footer: two rows of four. Counted by where the buttons land, not by
-   the .act-row elements, since the buttons can wrap within a row. */
 const foot = await evalIn(() => {
   const f = document.querySelector(".rail-foot");
   const buttons = [...f.querySelectorAll(".btn")];
@@ -469,8 +431,6 @@ fs.rmSync(DOWN, { recursive: true, force: true });
 const real = errors.filter((e) => !/favicon|manifest|sw\.js|Failed to load resource/i.test(e));
 say(real.length === 0, "no errors in the console", real.slice(0, 3).join(" · "));
 
-/* The writing stays shut until the form could be signed: evidence signed by
-   nobody is not evidence, and the writing is the expensive part to waste. */
 console.log("\nand the writing waits for what a document cannot do without");
 const shut = await evalIn(() => {
   const b = [...document.querySelectorAll(".rail-foot .btn")];
@@ -482,18 +442,14 @@ say(/Still needed/.test(shut.why) && /about/.test(shut.why),
   "and it says what it is waiting for rather than sitting there dead", shut.why.slice(0, 70));
 say(Boolean(shut.said), "which is written where it can be read, not only on hover", shut.said.slice(0, 70));
 
-/* Told what they are all about, it opens. */
 await clickText(".tab-bar button", "Tasks");
 await wait(500);
-/* The lens is still on one document from the check above, and through it a row
-   shows one tick rather than the grid of six. */
 await evalIn(() => {
   const all = [...document.querySelectorAll(".lens button")].find((b) => /^All /.test(b.textContent.trim()));
   if (all && !all.classList.contains("on")) all.click();
   return true;
 });
 await wait(400);
-/* The groups arrive shut, and shut again on the way back to the tab. */
 if (!(await count(".mark-row"))) { await click(".unit-open", 0); await wait(400); }
 await evalIn(() => {
   const row = document.querySelector(".mark-row");
@@ -510,9 +466,6 @@ const open = await evalIn(() => {
 });
 say(!open.off, "and once every document is told, it writes", open.why.slice(0, 60));
 
-/* The button counts whole documents although progress is fractional. The
-   writing is answered from here so the button can be caught mid-flight
-   without an upstream. */
 const CANNED = JSON.stringify({ content: [{ type: "text", text:
   "On the Thunderbird I worked with the candidate on the six-monthly maintenance of the launch and " +
   "recovery system. He stripped the sheave assembly, inspected it for wear, re-tensioned the tether " +
@@ -524,10 +477,6 @@ ws.on("message", (m) => {
 });
 await send("Fetch.enable", { patterns: [{ urlPattern: "*/api/ai*" }] });
 let answering = true;
-/* Which stand-in may answer. A flag alone is not enough: switched off and on
-   again within one of its 40 ms naps, the first stand-in wakes up still
-   running, and from then on two of them share the queue, one answering with
-   the fixed text. Each loop only carries on while the round is its own. */
 let round = 1;
 (async () => {
   while (answering && round === 1) {
@@ -559,8 +508,6 @@ say(labels.size > 0 && fractions.length === 0,
   "the writing counter counts documents, not the fraction that fills the bar",
   fractions[0] || [...labels].slice(0, 3).join(" · ") || "(the button never said it was writing)");
 
-/* One document can be written on its own: rewriting the set to fix one copy
-   would change every other copy's wording. */
 console.log("\nand one document can be written on its own");
 const onPage = await evalIn(() => {
   const b = [...document.querySelectorAll(".rail-foot .btn")].find((x) => /^(Rewrite|Write) [A-Z]{2}\d/.test(x.innerText));
@@ -571,8 +518,6 @@ say(/^(Rewrite|Write) /.test(onPage.label), "the footer offers the document on t
 say(!onPage.on || onPage.label.includes(onPage.on.split(/\s/)[0]),
   "and it names the one actually on screen", `${onPage.label} · showing ${onPage.on}`);
 
-/* Every document is given something to say, so a change is visible. Each
-   answer differs, so a copy that was written again is a copy whose text moved. */
 answering = true;
 round = 2;
 held.length = 0;
@@ -593,9 +538,6 @@ let take = 0;
     }).catch(() => {});
   }
 })();
-/* A press, then proof it started (its button found, text requested from the
-   stand-in above) before waiting for the end: a press that has not started
-   looks like one that finished. Each step fails out loud, by name. */
 const pressAndFinish = async (label, pattern) => {
   const before = take;
   const found = await evalIn((src) => {
@@ -614,9 +556,6 @@ const pressAndFinish = async (label, pattern) => {
   }
 };
 await pressAndFinish("writing the set", "^Write ");
-/* What each document says is read from the zip that gets sent, one .docx per
-   copy, not from the box on screen, which may still show the previous layout.
-   Entries that differ before and after are the documents written again. */
 const bundleNow = async (into) => {
   fs.rmSync(into, { recursive: true, force: true });
   fs.mkdirSync(into, { recursive: true });
@@ -630,8 +569,6 @@ const bundleNow = async (into) => {
       const { unzipSync } = await import("fflate");
       const box = unzipSync(new Uint8Array(fs.readFileSync(`${into}/${got[0]}`)));
       const { createHash } = await import("node:crypto");
-      /* The bytes, not their count: one digit more in a sentence leaves the
-         compressed length exactly where it was. */
       return Object.fromEntries(Object.entries(box).map(([name, bytes]) =>
         [name.split(" ")[0], createHash("sha1").update(Buffer.from(bytes)).digest("hex").slice(0, 10)]));
     }
@@ -668,14 +605,9 @@ fs.rmSync(SET2, { recursive: true, force: true });
 answering = false;
 await send("Fetch.disable").catch(() => {});
 
-/* The vessel field offers the fleet but stays free text: a trip can be on a
- * chartered ship, a rig or a yard.
- */
 console.log("\nand the vessel is offered rather than spelled");
 await clickText(".tab-bar button", "The pack");
 await wait(700);
-/* Found by the list it offers, not by an example in the box: a check that
-   looks for the example breaks on a change it should not notice. */
 const fleet = await evalIn(() => {
   const field = document.querySelector('.rail input[list="caap-vessels"]');
   if (!field) return null;

@@ -61,7 +61,6 @@ def from_old_word(path):
     raw = open(path, "rb").read()
     words = re.findall(rb"[\x20-\x7e]{6,}", raw)
     text = "\n".join(w.decode("ascii", "replace") for w in words)
-    # the tail of a .doc is full of style and font names; keep the sentences
     keep = [l for l in text.splitlines() if len(l.split()) >= 4]
     return "\n".join(keep).strip()
 
@@ -141,7 +140,6 @@ def main():
                 print("could not fetch", row["name"][:50]); continue
             text = words_in(local, row["kind"] or "")
             parts = passages(text)
-            # A page with nothing on it is marked read, not tried again forever.
             rest("PATCH", f"offshore_report_library?id=eq.{row['id']}",
                  {"text_content": text[:200000] if text else ""},
                  extra=("-H", "prefer: return=minimal"))

@@ -1,10 +1,3 @@
-/**
- * Finds the writing box on the drawn page: a filled document's box grows past the blank template's
- * measurement, so it is read from the page's stroked rectangles instead.
- */
-/**
- * Every bordered box on one drawn page, as fractions of it; its height comes from the drawing.
- */
 export async function boxesDrawn(pdfjs, page, size) {
   const { OPS } = pdfjs;
   let list;
@@ -13,7 +6,6 @@ export async function boxesDrawn(pdfjs, page, size) {
   } catch {
     return [];
   }
-  /* The transform in force, and the stack the save/restore pairs make of it. */
   let now = [1, 0, 0, 1, 0, 0];
   const stack = [];
   const times = (a, b) => [
@@ -23,8 +15,6 @@ export async function boxesDrawn(pdfjs, page, size) {
   ];
   const at = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 
-  /* The layout engine draws each box edge as its own stroke and the uprights one text line at a time,
-     so the pieces of each upright are joined back together before looking for boxes. */
   const uprights = [];
   for (let i = 0; i < list.fnArray.length; i += 1) {
     const fn = list.fnArray[i];
@@ -33,7 +23,6 @@ export async function boxesDrawn(pdfjs, page, size) {
     else if (fn === OPS.restore) now = stack.pop() || now;
     else if (fn === OPS.transform) now = times(now, args);
     else if (fn === OPS.constructPath) {
-      /* Use the path's bounding box rather than parsing the path grammar, which changed between reader versions. */
       const paint = Array.isArray(args?.[0]) ? args[0][args[0].length - 1] : args?.[0];
       const drawn =
         paint === OPS.stroke || paint === OPS.closeStroke || paint === OPS.fillStroke ||
@@ -50,8 +39,6 @@ export async function boxesDrawn(pdfjs, page, size) {
     }
   }
 
-  /* The pieces of one upright: the same place across the page, and each one
-     carrying on where the last stopped. */
   const JOIN = 3;
   const whole = [];
   for (const piece of uprights.sort((a, b) => a.x - b.x || a.y - b.y)) {
@@ -67,7 +54,6 @@ export async function boxesDrawn(pdfjs, page, size) {
     run.y = top;
   }
 
-  /* Two uprights the same height, far enough apart to write between. */
   const found = [];
   const near = (a, b, slack) => Math.abs(a - b) <= slack;
   for (let i = 0; i < whole.length; i += 1) {
@@ -84,7 +70,6 @@ export async function boxesDrawn(pdfjs, page, size) {
     }
   }
 
-  /* PDF counts up from the foot of the page; everything else counts down. */
   return found
     .map((r) => ({
       x: r.x / size.width,
@@ -95,10 +80,6 @@ export async function boxesDrawn(pdfjs, page, size) {
     .sort((a, b) => a.y - b.y);
 }
 
-/**
- * Matches the blank's boxes to the drawn ones by left edge and width, which do not move when a box grows,
- * taking height, top and page from the drawing. With nothing drawn, the blank's measurement stands.
- */
 export function fitBoxes(map, drawn) {
   const taken = new Set();
   return map.map((b) => {
@@ -108,7 +89,6 @@ export function fitBoxes(map, drawn) {
       for (const [m, r] of sheet.entries()) {
         const key = `${n}:${m}`;
         if (taken.has(key)) continue;
-        /* The map holds the writing area and the drawing its border, so match by shared width, not edges. */
         const over = Math.min(b.x + b.w, r.x + r.w) - Math.max(b.x, r.x);
         const share = over / Math.max(b.w, r.w);
         if (share < 0.75) continue;
@@ -120,7 +100,6 @@ export function fitBoxes(map, drawn) {
     }
     if (!best) return b;
     taken.add(mark);
-    /* The border is what was found; the writing goes inside it. */
     const pad = Math.min(0.004, best.h / 8);
     return {
       ...b,

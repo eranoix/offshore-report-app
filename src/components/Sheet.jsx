@@ -1,20 +1,14 @@
 import { useEffect, useRef } from "react";
 import { CRITERIA } from "../engine/generator";
 
-/** A block edited straight on the paper. Deliberately not controlled by React
- *  on every keystroke (that throws the caret to the start); the node is written
- *  only when the text arrived from elsewhere: a new generation or the panel. */
 function Editable({ text, generation, onChange, tag: Tag = "div", ...props }) {
   const ref = useRef(null);
   const seen = useRef(generation);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // A new generation always wins — that is the whole point of writing again.
     const regenerated = seen.current !== generation;
     seen.current = generation;
-    // Otherwise the panel may push text in, but never while the caret is in
-    // here: rewriting the node under someone's hands throws them to the start.
     if (!regenerated && el === document.activeElement) return;
     if (el.innerText !== text) el.innerText = text;
   }, [generation, text]);
@@ -50,8 +44,6 @@ const Footer = ({ page }) => (
   </div>
 );
 
-/** The two prose blocks carry their own controls: rewrite what is there, or
- *  write it again from the scores and the facts you supplied. */
 function BlockTools({ kind, onAiBlock, busy }) {
   if (!onAiBlock) return null;
   return (

@@ -1,12 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * Runs the Areas tab's two passes against the real framework and engine and
- * prints what it chose, for someone who knows the job to read. A reading, not a
- * test, but it checks it does not choose nothing, everything, or one twice.
- *
- *   node scripts/areas.mjs                 # a witness testimony about the LARS
- *   node scripts/areas.mjs "task; task"    # your own
- */
 import { build } from "esbuild";
 import https from "node:https";
 
@@ -19,8 +11,6 @@ if (!KEY) {
 const UPSTREAM = new URL(process.env.AI_UPSTREAM || "https://203.0.113.10:9443/v1/messages");
 const MODEL = process.env.AI_MODEL || "claude-sonnet-4-6";
 
-/* The page asks through /api/ai, which adds the key and the library. Here the
-   same prompts go straight up, so what is being read is the real wording. */
 function upstream(system, user, { maxTokens = 900, temperature = 0 } = {}) {
   const payload = JSON.stringify({ model: MODEL, max_tokens: maxTokens, temperature, system,
     messages: [{ role: "user", content: user }] });
@@ -47,7 +37,6 @@ function upstream(system, user, { maxTokens = 900, temperature = 0 } = {}) {
   });
 }
 
-/* The real module, with the browser's asking replaced by the line above. */
 const bundle = "/tmp/areas-match.mjs";
 await build({
   entryPoints: [`${__REPO}/src/engine/match.js`],
@@ -66,8 +55,6 @@ globalThis.__ask = async (system, user, opts) => {
 };
 const { areasForTasks } = await import(bundle);
 
-/* The framework the panel uses, through the same door: Node will not import
-   the JSON the browser's bundler hands over for free. */
 const shelf = "/tmp/areas-witness.mjs";
 await build({
   entryPoints: [`${__REPO}/src/engine/witness.js`],
@@ -108,7 +95,6 @@ say(got.length < criteria.length * 0.5, "and not half the framework", `${got.len
 say(new Set(got.map((c) => c.text)).size === got.length, "with nothing chosen twice");
 say(got.every((c) => criteria.some((x) => x.text === c.text)), "and every one is a real criterion");
 
-/* Asked again with those already marked, it must not hand the same ones back. */
 const again = await areasForTasks({
   tasks, criteria, rounds: 1,
   about: `Dario Castell is being assessed at ${ROLE} against the CAAP framework. This document is a witness testimony.`,

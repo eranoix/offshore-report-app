@@ -1,21 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-/**
- * Picking from a long taxonomy gets a surface of its own (139 criteria in a panel
- * beside a form is a list you scroll past): search, the groups with their counts,
- * and what you have chosen kept in sight.
- */
 export default function Picker({
   open,
   title,
   subtitle,
-  groups,          // [{ unit, items: [{ text, levels }] }]
-  chosen,          // [{ text }]
+  groups,
+  chosen,
   onToggle,
-  onBulk,          // (items, on) => void — the whole visible slice at once
-  levelsLabel,     // (level) => short label
+  onBulk,
+  levelsLabel,
   noun = "criteria",
-  single = false,  // pick one and the dialog closes
+  single = false,
   ownLevel,
   onClose,
 }) {
@@ -46,8 +41,6 @@ export default function Picker({
   const count = shown.reduce((n, g) => n + g.items.length, 0);
   const picked = (text) => chosen.some((c) => c.text === text);
 
-  /* The bar takes whatever the group and the search have left on screen, never
-     the whole framework behind your back. */
   const visible = useMemo(() => shown.flatMap((g) => g.items), [shown]);
   const choose = (c) => {
     onToggle(c);

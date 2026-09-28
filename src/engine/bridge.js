@@ -1,8 +1,3 @@
-/**
- * Which framework units each task group can evidence. The task book and the CAAP
- * framework use different headings; this table lets the panel offer the matching
- * criteria for a document. It is an offer, never a rule: nothing is ticked unasked.
- */
 const BRIDGE = {
   "Client and vessel interface": ["Project Activities", "Operational Scope Of Work", "Behavioural Factors"],
   "Equipment and spares": ["Preventative Maintenance", "Specialist Equipment", "Administration"],
@@ -24,15 +19,9 @@ const BRIDGE = {
 };
 
 const flat = (s) => String(s || "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
-/* Words that head half the list and so tell you nothing about which half. */
 const THIN = new Set(["and", "of", "the", "an", "a", "rov", "technical", "piloting", "operations", "activities", "skills", "factors", "scope", "work", "management", "interface"]);
 const meat = (s) => new Set(flat(s).split(" ").filter((w) => w.length > 3 && !THIN.has(w)));
 
-/**
- * The framework units a task's group can speak to. Groups not in the table fall
- * back to a word match on the framework's headings; with no match nothing is
- * suggested, because a wrong offer costs more than no offer.
- */
 export function unitsBehind(taskUnit, available = []) {
   const named = BRIDGE[taskUnit];
   const have = new Set(available);
@@ -49,7 +38,6 @@ export function unitsBehind(taskUnit, available = []) {
   });
 }
 
-/** Every framework unit the given tasks could evidence, without repeats. */
 export function unitsFromTasks(tasks, available = []) {
   const out = [];
   for (const t of tasks) {

@@ -1,10 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * Reading a verdict out of an answer that was asked for JSON only, including a
- * reader that writes a first answer, changes its mind, and writes a second.
- *
- *   node scripts/verdict.mjs
- */
 import { build } from "esbuild";
 
 const bundle = "/tmp/verdict-engine.mjs";
@@ -21,7 +15,6 @@ const say = (ok, label, got = "") => {
   if (!ok) fails.push(label);
 };
 
-/* A real reply's shape, shortened. */
 const RECONSIDERED = `\`\`\`json
 {"invented": ["I worked alongside him for the whole trip", "He carried out the pre and post dive checks"]}
 \`\`\`

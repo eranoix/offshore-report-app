@@ -1,10 +1,3 @@
-/**
- * The rotation as a CalDAV account: two-way, unlike the one-way feed in `ics.js`.
- * "Rotation" is read-only (worked out from the pattern); "Events" holds his own dates, one file each.
- * An event from the phone is served back as the phone wrote it (`src`) until the plan's fields
- * differ from `sig`; then it is written afresh from them, keeping the phone's alerts.
- * Pure: `davAnswer` is given the request and the plan, and says what to answer and what the plan becomes.
- */
 import { dayOf, isoOf, spanOf, CATEGORY, CATEGORIES, dropDate } from "./rotation.js";
 import { veventsOf, esc, fold, ymd, alarm } from "./ics.js";
 
@@ -14,11 +7,8 @@ const CS = "http://calendarserver.org/ns/";
 const APPLE = "http://apple.com/ns/ical/";
 const PREFIX = { [DAV]: "d", [CAL]: "c", [CS]: "cs", [APPLE]: "a" };
 
-/* A year for a birthday kept as day and month alone: a calendar event needs
-   one. A leap year, so the 29th of February has somewhere to be. */
 export const NO_YEAR = 2000;
 
-/** A short, stable fingerprint of a text — an ETag, a ctag, a file name. */
 export function hashOf(text) {
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
@@ -37,11 +27,6 @@ const canon = (v) => (Array.isArray(v) ? v.map(canon)
   : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).filter((k) => v[k] !== undefined && v[k] !== null).sort().map((k) => [k, canon(v[k])]))
   : v);
 
-/**
- * The XML a calendar app sends, as a tree of `{ ns, name, kids, text }`, with
- * every element's namespace worked out from its prefix. Just enough XML for
- * PROPFIND and REPORT bodies: no DTD, no entities beyond the five.
- */
 export function readXml(text) {
   const root = { ns: "", name: "#root", kids: [], text: "" };
   const stack = [{ node: root, spaces: { xml: "http://www.w3.org/XML/1998/namespace" }, dflt: "" }];
@@ -79,8 +64,6 @@ const deep = (node, ns, name) => {
   return out;
 };
 
-/** An element's tag, in the prefix its namespace has in the answer, or with
- *  a namespace of its own when it is one this server has never heard of. */
 const tagOf = (ns, name) => (PREFIX[ns] ? { open: `${PREFIX[ns]}:${name}`, decl: "" }
   : ns ? { open: `x:${name}`, decl: ` xmlns:x="${xmlEsc(ns)}"` } : { open: name, decl: ' xmlns=""' });
 const el = (ns, name, inner = "") => {
@@ -90,8 +73,6 @@ const el = (ns, name, inner = "") => {
 const multistatus = (responses) =>
   `<?xml version="1.0" encoding="utf-8"?>\n<d:multistatus xmlns:d="DAV:" xmlns:c="${CAL}" xmlns:cs="${CS}" xmlns:a="${APPLE}">${responses.join("")}</d:multistatus>`;
 
-/** One `<response>` for one address: the properties it has, and the ones asked
- *  for that it has not, each in its own propstat as the protocol wants. */
 function responseFor(href, wanted, values) {
   const found = [];
   const missing = [];
@@ -120,8 +101,6 @@ const DAYNAME = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const FREQ = { DAILY: "day", WEEKLY: "week", MONTHLY: "month", YEARLY: "year" };
 const RFREQ = { day: "DAILY", week: "WEEKLY", month: "MONTHLY", year: "YEARLY" };
 
-/** What of a date the calendar file is made from — so a change to any of it,
- *  on the site, is a change the phone has to be sent. */
 const FIELDS = ["what", "on", "until", "every", "repeat", "ex", "skip", "first", "last", "desc", "where", "time", "cat"];
 export function sigOf(d, parts = []) {
   const pick = (x) => Object.fromEntries(FIELDS.map((k) => [k, x?.[k]]));
@@ -129,8 +108,6 @@ export function sigOf(d, parts = []) {
   return hashOf(JSON.stringify(canon({ d: pick(d), parts: each })));
 }
 
-/** The events of one calendar file, unfolded, each as its property lines,
- *  with any alerts kept whole. */
 function veventsIn(text) {
   const lines = String(text || "").replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/);
   const out = [];
@@ -163,7 +140,6 @@ function veventsIn(text) {
 }
 const prop = (ev, name) => ev.props.find((p) => p.name === name) || null;
 
-/** When an event starts or ends: its day, and its clock and zone when it has one. */
 function whenOf(p) {
   if (!p) return null;
   const allDay = p.params.VALUE === "DATE" || !/T/.test(p.value);
@@ -174,11 +150,6 @@ function whenOf(p) {
   };
 }
 
-/**
- * A calendar file PUT by the phone, read into a date of the plan and the
- * occurrences it moved on their own. `id` is the file's name; `prev` is the
- * date already kept under it, whose category the phone never knew.
- */
 export function dateFromIcs(text, id, prev = null) {
   if (!/BEGIN:VCALENDAR/.test(text)) return { error: "not a calendar" };
   const evs = veventsIn(text);
@@ -223,8 +194,6 @@ export function dateFromIcs(text, id, prev = null) {
       && (!rule.BYMONTHDAY || +rule.BYMONTHDAY === +start.on.slice(8, 10));
     if (plainYear) {
       date.every = "year";
-      /* A birthday with no year on the site went to the phone in the year 2000,
-         and comes back as the day and month it was. */
       if (prev && String(prev.on).length <= 5 && +start.on.slice(0, 4) === NO_YEAR) {
         date.on = start.on.slice(5);
         delete date.until;
@@ -240,17 +209,11 @@ export function dateFromIcs(text, id, prev = null) {
       }
       if (rule.UNTIL) date.repeat.until = dateOf(rule.UNTIL);
       if (rule.COUNT) date.repeat.count = Math.max(1, +rule.COUNT);
-      /* A rule the calendar here does not draw — "the second Monday of the
-         month" — is kept as the phone wrote it and drawn as near as it can
-         be; the phone still has it exactly. */
       if (rule.BYSETPOS || (rule.BYDAY && rule.FREQ !== "WEEKLY") || rule.BYMONTHDAY || rule.BYMONTH) date.repeat.rough = true;
       if (ex.length) date.ex = [...new Set(ex)].sort();
     }
   }
 
-  /* An occurrence moved or renamed on its own on the phone: the series leaves that day out and
-     the occurrence becomes a date of its own tied to the series, so the site draws it where it
-     went and the phone keeps it as part of the one event. */
   const parts = [];
   for (const ev of evs) {
     const rid = prop(ev, "RECURRENCE-ID");
@@ -272,7 +235,6 @@ export function dateFromIcs(text, id, prev = null) {
   return { date, parts };
 }
 
-/** A day and a clock, in the form DTSTART takes. */
 const stampOf = (iso, clock) => `${ymd(iso)}T${clock.replace(":", "")}00`;
 const whenLine = (name, iso, time, clock) => {
   if (!time) return `${name};VALUE=DATE:${ymd(iso)}`;
@@ -281,12 +243,6 @@ const whenLine = (name, iso, time, clock) => {
   return `${name}:${stampOf(iso, clock)}`;
 };
 
-/**
- * One of his dates written as a calendar file — with the occurrences it moved
- * on their own inside it, as the protocol keeps them. The phone's alerts are
- * kept when the phone had given it some; a date made on the site gets the
- * reminder the plan asks for.
- */
 export function icsOfDate(d, parts = [], { reminder = 1, stamp = "20260101T000000Z" } = {}) {
   const fromPhone = d.src ? veventsIn(d.src).find((e) => !prop(e, "RECURRENCE-ID")) : null;
   const uid = d.src && d.uid ? d.uid : `${d.id}@offshore-report`;
@@ -341,13 +297,8 @@ export function icsOfDate(d, parts = [], { reminder = 1, stamp = "20260101T00000
   return `${lines.map(fold).join("\r\n")}\r\n`;
 }
 
-/** A file name the phone may use for an event: its own UUID, or ours. */
 export const goodName = (n) => /^[A-Za-z0-9][A-Za-z0-9._@+-]{0,120}$/.test(n) && !n.includes("~");
 
-/**
- * The two calendars' files, each with its name, ETag and text, and the ctag
- * that changes whenever any file in the calendar does.
- */
 export function collectionsOf(plan, { today, certificates = [], stamp = "20260101T000000Z" } = {}) {
   const rem = { change: 1, event: 1, ticket: 30, ...(plan?.reminders || {}) };
   const rotation = veventsOf(plan, { today, certificates, stamp })
@@ -362,8 +313,6 @@ export function collectionsOf(plan, { today, certificates = [], stamp = "2026010
   const ids = new Set(dates.map((d) => d.id));
   const events = [];
   for (const d of dates) {
-    /* An occurrence of a series is inside the series' file, unless the series
-       is gone — then it is an event of its own. */
     if (d.of && ids.has(d.of)) continue;
     const parts = partsOf.get(d.id) || [];
     const text = d.src && d.sig === sigOf(d, parts) ? d.src : icsOfDate(d, parts, { reminder: rem.event, stamp });
@@ -383,14 +332,6 @@ const CALENDARS = {
     about: "Your events on Offshore Report. Add, move or delete them here or on the site — both stay the same." },
 };
 
-/**
- * What to answer a calendar app.
- *
- * @param req  { method, path, depth, body, ifMatch, ifNoneMatch } — `path` is
- *             what follows /dav/, "" for the account itself
- * @param ctx  { plan, today, certificates, email, root, stamp }
- * @returns    { status, headers, body, plan } — `plan` only when it changed
- */
 export function davAnswer(req, ctx) {
   const root = ctx.root || "/dav/";
   const method = String(req.method || "GET").toUpperCase();
@@ -471,8 +412,6 @@ export function davAnswer(req, ctx) {
     calendar: [[DAV, "resourcetype"], [DAV, "displayname"], [CS, "getctag"], [DAV, "getetag"], [CAL, "supported-calendar-component-set"], [APPLE, "calendar-color"]],
     file: [[DAV, "getetag"], [DAV, "getcontenttype"], [DAV, "resourcetype"]],
   };
-  /* The properties a body asks for, or the usual ones when it asks for all or
-     says nothing. */
   const askedIn = (tree, kind) => {
     const p = deep(tree, DAV, "prop")[0];
     if (!p) return ALL[kind];
@@ -497,8 +436,6 @@ export function davAnswer(req, ctx) {
   }
 
   if (method === "PROPPATCH") {
-    /* Colour and order are asked to be kept; they are the site's, and the
-       answer says yes so the app does not keep asking. */
     const tree = readXml(req.body);
     const names = deep(tree, DAV, "prop").flatMap((p) => p.kids.map((k) => [k.ns, k.name]));
     return answer(207, multistatus([responseFor(req.path ? `${root}${path}` : root, names, () => "")]), xml);
@@ -521,8 +458,6 @@ export function davAnswer(req, ctx) {
       return answer(207, multistatus(out), xml);
     }
     if (top?.ns === CAL && top.name === "calendar-query") {
-      /* Every event, whatever the range asked for: more than was asked is
-         allowed, and a phone asks for a range and then keeps what it gets. */
       return answer(207, multistatus(col.files.map((f) => responseFor(href(calName, f.name), wanted, fileProp(f, withData)))), xml);
     }
     return error(403, "supported-report");
@@ -565,8 +500,6 @@ export function davAnswer(req, ctx) {
     if (!file) return answer(404, "No such event.");
     if (req.ifMatch && !matches(req.ifMatch, file)) return answer(412, "That event was changed since.");
     const plan = ctx.plan || {};
-    /* Into the bin, as a delete on the site does — thirty days to get it back
-       — and its moved occurrences with it. */
     const binned = dropDate(plan, file.id, ctx.today);
     const next = { ...binned, dates: (binned.dates || []).filter((d) => d.of !== file.id) };
     return { status: 204, body: "", headers: {}, plan: next };
@@ -578,12 +511,6 @@ export function davAnswer(req, ctx) {
   return answer(405, "Not a thing a calendar can do here.");
 }
 
-/**
- * An Apple configuration profile that adds the account to Calendar: opened on
- * an iPhone it lands in Settings, opened on a Mac in System Settings, and
- * installing it is the whole of the set-up. The password in it is the
- * calendar key, which is why it is only ever given to the signed-in owner.
- */
 export function profileOf({ host, email, key, doc }) {
   const uuid = (seed) => {
     const h = hashOf(seed) + hashOf(`${seed}.`);

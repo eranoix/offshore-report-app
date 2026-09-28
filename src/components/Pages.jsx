@@ -1,13 +1,6 @@
-/**
- * A document, painted rather than framed: an iframe hands the file to the
- * browser's PDF viewer, which this site's X-Frame-Options: deny refuses and which
- * often shows nothing on a phone. Painted, it behaves the same everywhere.
- */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { readerReady } from "../engine/reader";
 
-/* A point of the document is a seventy-second of an inch, a pixel of a screen
-   a ninety-sixth: at "100%" the page is its printed size. */
 const REAL = 96 / 72;
 const STEPS = [50, 75, 100, 125, 150, 200, 250];
 
@@ -18,7 +11,6 @@ export default function Pages({ src, title, onFail, overlay = null, onLaid = nul
   const [zoom, setZoom] = useState("fit");
   const [state, setState] = useState("opening");
 
-  /* How wide the room is, so "as wide as it goes" can mean something. */
   useLayoutEffect(() => {
     const box = holder.current;
     if (!box) return undefined;
@@ -47,8 +39,6 @@ export default function Pages({ src, title, onFail, overlay = null, onLaid = nul
         if (!live) return;
         setPages(got);
         setState("shown");
-        /* The document itself, for whoever needs more from it than a picture —
-           the forms page asks it where every line of text landed. */
         onLaid?.(file, got);
       } catch (e) {
         if (!live) return;
@@ -64,7 +54,6 @@ export default function Pages({ src, title, onFail, overlay = null, onLaid = nul
   const first = pages[0];
   const scale = !first || !wide ? 1 : zoom === "fit" ? (wide - 28) / first.w : ((Number(zoom) || 100) / 100) * REAL;
 
-  /* Paint every page at that size, at the screen's own sharpness. */
   useEffect(() => {
     if (!pages.length) return undefined;
     const jobs = [];
@@ -82,9 +71,6 @@ export default function Pages({ src, title, onFail, overlay = null, onLaid = nul
     return () => jobs.forEach((job) => job.cancel?.());
   }, [pages, scale]);
 
-  /* Read the size from what it actually is, not from the number this render
-     happened to draw: two quick presses both worked from the same figure and
-     the second was lost. */
   const held = useRef(zoom);
   held.current = zoom;
   const now = Math.max(1, Math.round((scale / REAL) * 100));
@@ -96,10 +82,6 @@ export default function Pages({ src, title, onFail, overlay = null, onLaid = nul
     setZoom(size);
   };
 
-  /* Each page is a box the size of the printed sheet with the canvas filling
-     it, so anything drawn on top can be placed as a fraction of the page and
-     stay where it belongs at any size. Without something to overlay the box is
-     just a wrapper nobody notices. */
   return (
     <div className="pages" ref={holder}>
       <div className="pages-size" role="group" aria-label="How big to draw">

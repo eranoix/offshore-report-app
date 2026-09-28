@@ -1,11 +1,3 @@
-/**
- * Lodges the company's own forms on the server as version 0: the baseline every
- * later version is measured against, and what "back to the original" restores.
- * The days-at-sea workbook's version 0 is the tracker with every day emptied out.
- * Written once: a run that finds version 0 already there leaves it as it is.
- *
- *   node scripts/seed-templates.mjs
- */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -17,9 +9,6 @@ const FORMS = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "forms"
 const KINDS = ["witness", "observation", "knowledge", "feedback", "trip", "sed"];
 const BUCKET = "offshore-report-templates";
 
-/* The days-at-sea tracker is a workbook and must be lodged under its own name and
-   type: a store told an .xlsx is a Word document hands it back as one, and the
-   editor then reports the file as corrupt. */
 const SHEETS = ["sed"];
 const extOf = (kind) => (SHEETS.includes(kind) ? "xlsx" : "docx");
 const typeOf = (kind) =>
@@ -27,8 +16,6 @@ const typeOf = (kind) =>
     ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-/* The service key of the Supabase the site uses, from the environment, so it
-   is never copied anywhere it could be left behind. */
 const BASE = (process.env.SUPABASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 if (!SERVICE) {

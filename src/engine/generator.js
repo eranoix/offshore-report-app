@@ -1,7 +1,3 @@
-/**
- * Trip feedback engine: picks the scores, builds the campaign context and writes the
- * comments from the lexicon. Pure — no DOM, no state of its own.
- */
 import vocab from "./vocab.json";
 import templates from "./templates.json";
 import { pickFresh } from "./memory";
@@ -27,9 +23,8 @@ export const LABEL = Object.fromEntries(
   CRITERIA.map(([k, a, b]) => [k, b ? `${a} ${b}` : a]),
 );
 
-/** These three are rarely a crew member's standout — last in line for a 5. */
 const LESS_LIKELY = ["english", "communication", "decision"];
-const COMMENT_LIMIT = 175; // fits two lines of the comments cell
+const COMMENT_LIMIT = 175;
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const shuffle = (a) => {
@@ -41,7 +36,6 @@ const shuffle = (a) => {
   return c;
 };
 
-/** "Flexlay campaign - ROV support to X, Y" -> "the flexlay scope, X, Y" */
 export function shortScope(scope) {
   let s = (scope || "").trim().replace(/\.$/, "");
   s = s.split(/\s+-\s+|\s+–\s+/).slice(-1)[0];
@@ -49,7 +43,6 @@ export function shortScope(scope) {
   return s ? s[0].toLowerCase() + s.slice(1) : "the workscope";
 }
 
-/** Everything in one document comes from the same world: the chosen campaign. */
 export function buildContext(doc) {
   const camp = V.campaigns[doc.campaign] || V.campaigns.flexlay;
   const pools = {
@@ -65,10 +58,6 @@ export function buildContext(doc) {
   };
   const used = new Set();
 
-  /* Which of the campaign's jobs the supervisor actually wrote down.
-     A comment that names a service is a claim that this person was on it, so
-     it may only name one the notes mention. Everything else is described by
-     what he does, not by a job nobody recorded him doing. */
   const said = String(doc.notes || "").toLowerCase();
   const mentions = (entry) => {
     const keys = String(entry)
@@ -83,8 +72,6 @@ export function buildContext(doc) {
     : { task: [], tool: [], system: [] };
 
   const firstName = (t) => (t || "").trim().split(/\s+/)[0] || t || "";
-  // With an empty field the sentence still has to read: "on board the {vessel}"
-  // must become "on board the vessel", never "the the vessel".
   const fixed = {
     crew: doc.crew || "the crew member",
     first: firstName(doc.crew) || "he",
@@ -112,11 +99,6 @@ export function buildContext(doc) {
   };
 }
 
-/**
- * A slot can land at the start of a sentence, so capitalise sentence starts.
- * A single capital standing alone before the stop is an initial ("A. Moreau"), not a sentence
- * end; "the ROV." still ends one.
- */
 const capitalise = (t) =>
   t.replace(/(^|\n\n|(?<!(?:^|[^A-Za-z])[A-Z])[.!?]\s+)([a-z])/g,
     (m, before, letter) => before + letter.toUpperCase());
@@ -130,18 +112,6 @@ export function fill(template, ctx) {
   return capitalise(text);
 }
 
-/**
- * Score presets — the band the whole document sits in.
- *
- * A preset is a mix: how much of the sheet sits on each score. The eleven
- * criteria are handed out to match it as closely as eleven rows allow, so the
- * same preset always produces the same shape, never a flat sheet.
- *
- *   Bad        70% at 3, 30% at 2          (8 and 3 of eleven)
- *   Medium     90% at 3, 10% at 4          (10 and 1)
- *   Good       60% at 3, 40% at 4          (7 and 4)
- *   Very good  60% at 3, 30% at 4, 10% 5   (7, 3 and 1)
- */
 export const PRESETS = {
   bad: { label: "Bad", mix: [[3, 0.7], [2, 0.3]] },
   medium: { label: "Medium", mix: [[3, 0.9], [4, 0.1]] },
@@ -149,14 +119,8 @@ export const PRESETS = {
   very_good: { label: "Very good", mix: [[3, 0.6], [4, 0.3], [5, 0.1]] },
 };
 
-/** The score the preset leans on — the biggest share of the sheet. */
 const mainScore = (preset) => preset.mix.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 
-/**
- * Turn the shares into whole rows. Eleven criteria never divide evenly into a
- * percentage, so the leftovers go to the scores that were closest to another
- * whole row — the standard way to round a share into seats.
- */
 export function countsFor(mix, rows) {
   const want = mix.map(([score, share]) => {
     const exact = share * rows;
@@ -171,13 +135,6 @@ export function countsFor(mix, rows) {
   return want.map(({ score, n }) => ({ score, n }));
 }
 
-/**
- * English, Communication and Decision Making are rarely anyone's standout, so
- * they queue last for a score above the preset's own, and first for one below.
- *
- * Scores already fixed by hand count towards the mix: the sheet as a whole is
- * what has to match the preset, not the rows that happen to be left over.
- */
 export function scorePlan(keys, held = {}, presetKey = "good") {
   const preset = PRESETS[presetKey] || PRESETS.good;
   const main = mainScore(preset);
@@ -189,8 +146,6 @@ export function scorePlan(keys, held = {}, presetKey = "good") {
     if (taken && taken.n > 0) taken.n -= 1;
   }
 
-  // A hand-set score outside the mix leaves the books short or long; the
-  // preset's own score absorbs the difference.
   let off = counts.reduce((sum, c) => sum + c.n, 0) - keys.length;
   const home = slot(main) || counts[0];
   while (off > 0) {
@@ -205,8 +160,6 @@ export function scorePlan(keys, held = {}, presetKey = "good") {
   const plan = {};
   const left = new Set(keys);
 
-  // Furthest from the preset's own score first: those are the rows that carry
-  // the shape, and they should not be left with whatever is still unassigned.
   for (const { score, n } of [...counts].sort(
     (a, b) => Math.abs(b.score - main) - Math.abs(a.score - main),
   )) {
@@ -225,27 +178,19 @@ export function scorePlan(keys, held = {}, presetKey = "good") {
 export const average = (criteria) =>
   KEYS.reduce((sum, k) => sum + criteria[k].score, 0) / KEYS.length;
 
-/* The slots that name a piece of work. Filling one is a claim that this person
-   was on that job, so a comment may only use them when the supervisor's notes
-   name it. */
 const NAMES_WORK = ["task", "tool", "system", "fault", "fix", "inspection"];
 
-/** Can this phrase be used without putting an unrecorded job in his file? */
 function grounded(template, ctx) {
   const slots = [...String(template).matchAll(/\{([a-z_0-9]+)\}/g)].map((m) => m[1].replace(/[0-9]+$/, ""));
   return slots.every((slot) => !NAMES_WORK.includes(slot) || ctx.grounded?.[slot]?.length);
 }
 
 export function comment(key, score, ctx, used = new Set(), meta = {}) {
-  // `meta.from` comes back with the phrase this was built from, so the document
-  // can say later — when it is actually issued — what it has spent.
   const bank = T.criteria[key];
   const pool =
     bank[String(score)] || bank["4"] || ["Meets the standard expected for the grade."];
   const { pool: candidates, exhausted } = pickFresh(pool, used);
   meta.exhausted = exhausted;
-  /* Prefer the phrases that name no job. Three quarters of the bank names
-     none, so this costs almost no variety and keeps every comment true. */
   const safe = candidates.filter((t) => grounded(t, ctx));
   const choose = safe.length ? safe : candidates;
   let shortest = null;
@@ -263,8 +208,6 @@ export function comment(key, score, ctx, used = new Set(), meta = {}) {
   return shortest[1];
 }
 
-/** Draws from a prose bank, preferring what no document of yours has used. The
- *  drawn set is what the block is made of, and is handed back with it. */
 function draw(pool, used = new Set()) {
   const { pool: candidates } = pickFresh(pool, used);
   const chosen = pick(candidates);
@@ -272,20 +215,11 @@ function draw(pool, used = new Set()) {
   return chosen;
 }
 
-/**
- * The two prose blocks. `trim` > 0 shortens them to fit page one.
- * The tone follows the scores: a document full of 2s cannot close with praise,
- * so low scores swap the highlights for the concerns and change the sign-off.
- */
 export function writeBlocks(ctx, criteria, trim = 0) {
   const s = T.supervisor;
   const avg = average(criteria);
-  /* Three is On Target: a sheet that averages three is a solid trip and is written as one.
-     The scale's own meaning is the threshold. */
   const ON_TARGET = 3;
   const solid = avg >= ON_TARGET;
-  // A praising opening on top of a critical body reads as two different people:
-  // below the band the opening turns factual.
   const drawn = new Set();
   const blocks = [fill(draw(solid ? s.opening : s.opening_low, drawn), ctx)];
   const howMany = Math.max(1, 2 - trim);
@@ -296,22 +230,16 @@ export function writeBlocks(ctx, criteria, trim = 0) {
     .sort((a, b) => criteria[a].score - criteria[b].score);
   const praise = (ks) => ks.slice(0, howMany).map((k) => fill(draw(s.highlight[k], drawn), ctx));
   const concerns = (ks) => ks.slice(0, howMany).map((k) => fill(draw(s.concern[k], drawn), ctx));
-  /* What comes next for him: more responsibility above the band, the basics below it. Two banks,
-     so a report saying he needs close supervision never says he is ready for more. */
   const next = () => fill(draw(solid ? s.development : s.development_low, drawn), ctx);
 
   let body;
   let closing;
   if (solid) {
     body = praise(best);
-    /* On target overall does not mean nothing was said. A criterion actually
-       scored 1 or 2 is a concern the supervisor put there on purpose, and it
-       goes in beside the high points instead of being written out by them. */
     if (worst.length) body = body.slice(0, Math.max(1, howMany - 1)).concat(concerns(worst.slice(0, 1)));
     if (!body.length) body = [fill(draw(s.middle, drawn), ctx)];
     closing = draw(s.closing, drawn);
   } else if (avg >= 2.5) {
-    // Halfway: one strength and one point to develop, side by side.
     body = praise(best.slice(0, 1)).concat(concerns(worst.slice(0, 1)));
     if (!body.length) body = [next()];
     closing = draw(s.closing_mid, drawn);
@@ -336,7 +264,6 @@ export function writeBlocks(ctx, criteria, trim = 0) {
   return { supervisor: blocks.join("\n\n"), crew, from: [...drawn] };
 }
 
-/** A whole document: scores, comments and both prose blocks. */
 export function generateDocument(doc, { locked = {}, keepScores = null, preset = "good" } = {}) {
   const ctx = buildContext(doc);
   const held = keepScores
@@ -358,7 +285,6 @@ export function generateDocument(doc, { locked = {}, keepScores = null, preset =
   return { criteria, blocks: writeBlocks(ctx, criteria), ctx, exhausted };
 }
 
-/** One score, rolled with the preset's own odds. */
 export function rollScore(presetKey = "good") {
   const p = PRESETS[presetKey] || PRESETS.good;
   let roll = Math.random();
@@ -369,7 +295,6 @@ export function rollScore(presetKey = "good") {
   return p.mix[0][0];
 }
 
-/** Rewrites the wording only, keeping the scores and anything edited by hand. */
 export function rewrite(doc, criteria, edited = {}) {
   const ctx = buildContext(doc);
   const used = new Set();

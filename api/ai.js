@@ -1,27 +1,12 @@
-/**
- * The writing endpoint. The browser has no credential: this adds the key from
- * the environment, and accepts the upstream's own certificate server side,
- * which browsers refuse. Reached only with a session (middleware.js gates /api/*).
- */
 import https from "node:https";
 import { db, session } from "./_supabase.js";
 
-/* The ceiling on one answer. It must clear what a many-area document asks
-   for: a lower cap does not shorten the request, it truncates the document. */
 const MAX_TOKENS = 8000;
-/* Our own prompt, not the user's. Room for the house style plus the rules a
-   particular document adds, so a rule is never silently cut off the end. */
 const SYSTEM_CHARS = 12_000;
-/* A statement being repaired arrives whole: three A4 pages of prose plus the
-   faults to fix. Cut it and the repair quietly loses the end of the document. */
 const MESSAGE_CHARS = 24_000;
 const PASSAGES = 8;
 const CONTEXT_CHARS = 7000;
 
-/* Words the library is searched with. Anything that is not a plain word is
-   dropped, so what reaches to_tsquery is always a list of words joined by OR —
-   a person typing a quote mark cannot break the query or reach past their own
-   documents. */
 function terms(hint = {}) {
   const words = Object.values(hint)
     .filter((v) => typeof v === "string")
@@ -33,7 +18,6 @@ function terms(hint = {}) {
 }
 const STOP = new Set(["the","and","for","with","that","this","from","their","them","has","had","was","were","are","its","his","her","who","which","into","out","over","per","any","all","one","two"]);
 
-/** The few passages of this person's own library that bear on what is written. */
 async function fromLibrary(req, hint, facts = false) {
   const who = session(req);
   if (!who?.sub) return "";
@@ -52,10 +36,6 @@ async function fromLibrary(req, hint, facts = false) {
       out += piece;
     }
     if (!out) return "";
-    /* Two ways to use a person's own paperwork. A trip feedback borrows its
-       voice and must invent nothing from it — those documents belong to other
-       people. Competence evidence is the opposite: it may say only what the
-       records show, because the records are the evidence. */
     return facts
       ? `THE RECORDS — this person's own completed paperwork. Everything you write
 must come from here. Every task, system, tool, place, condition and action you
@@ -74,7 +54,7 @@ Do NOT take facts from them: no name, vessel, date, incident or person mentioned
 here belongs in what you write. The facts come only from the form.
 ${out}`;
   } catch {
-    return ""; // the library is a help, never a condition
+    return "";
   }
 }
 
@@ -92,8 +72,6 @@ function callUpstream(payload) {
       "x-api-key": process.env.AI_KEY,
       "anthropic-version": "2023-06-01",
     },
-    // The upstream presents its own certificate. Either pin it with AI_CA, or
-    // accept it knowingly — this is a fixed host we control, not the open web.
     ...(process.env.AI_CA
       ? { ca: process.env.AI_CA }
       : { rejectUnauthorized: false, servername: url.hostname }),
@@ -112,8 +90,6 @@ function callUpstream(payload) {
 }
 
 export default async function handler(req, res) {
-  // The page probes with HEAD before offering to write; answer quietly
-  // instead of logging a method error in every console.
   if (req.method === "HEAD" || req.method === "OPTIONS") {
     res.setHeader("allow", "POST, HEAD");
     return res.status(204).end();
@@ -123,9 +99,6 @@ export default async function handler(req, res) {
 
   const input = req.body || {};
 
-  /* The page can ask for the reference material itself: what is written has to
-     be checked against the same passages it was written from, and the check
-     happens in the browser. */
   if (input.want === "passages") {
     const who = session(req);
     if (!who?.sub) return res.status(401).json({ error: "not signed in" });
@@ -156,7 +129,6 @@ export default async function handler(req, res) {
     }));
   if (!messages.length) return res.status(400).json({ error: "no messages" });
 
-  // The page chooses neither the model nor how much it may spend.
   const payload = {
     model: process.env.AI_MODEL || "claude-sonnet-4-6",
     max_tokens: Math.min(Number(input.max_tokens) || 400, MAX_TOKENS),

@@ -1,11 +1,6 @@
-/**
- * The pack's sections as folder tabs. Tasks, areas and documents are one folder seen three ways, so the
- * same marking device serves two of the tabs.
- */
 import { Fragment } from "react";
 import Icon from "../Icon";
 
-/** Which documents the lists are marking for: all of them, or one. */
 export function Lens({ sheets, lens, setLens, noun }) {
   return (
     <div className="lens" role="group" aria-label={`Which document to mark ${noun} for`}>
@@ -27,10 +22,6 @@ export function Lens({ sheets, lens, setLens, noun }) {
   );
 }
 
-/**
- * One line of a list and the documents it is on: every document as a button with the lens off, or a
- * ticklist for the chosen document that notes where else the line already sits.
- */
 function MarkRow({ text, note, on, sheets, lens, wide, onMark, closes, wayOut, noun }) {
   return (
     <li className={`mark-row${on.length ? " set" : ""}${closes ? " closes" : ""}${wayOut ? " finishes" : ""}`}>
@@ -87,10 +78,6 @@ function MarkRow({ text, note, on, sheets, lens, wide, onMark, closes, wayOut, n
   );
 }
 
-/**
- * A group of either list, with its marked count and one bulk button. The button names its target document
- * ("All -> WT02") because with the lens off every row shows six documents.
- */
 function Group({ name, items, open, onOpen, on, into, intoRef, onAll, closes, children }) {
   const mine = items.filter((t) => on(t.text).includes(into)).length;
   const here = items.filter((t) => on(t.text).length).length;
@@ -138,8 +125,6 @@ export function Pack({ doc, change, level, LEVELS, onLevel, scheme, setWanted, c
     <>
       <fieldset>
         <legend>Level being assessed</legend>
-        {/* A ladder, not a list of names: Pilot Technician up to Superintendent.
-            Marked so the bench knows it is ordered on purpose. */}
         <select className="level-pick" data-scale="" value={doc.level} onChange={(e) => onLevel(e.target.value)}>
           {LEVELS.map((l) => (
             <option key={l.level}>{l.level}</option>
@@ -181,8 +166,6 @@ export function Pack({ doc, change, level, LEVELS, onLevel, scheme, setWanted, c
         <legend>Where the work was</legend>
         <label className="field">
           <span>Site or vessel</span>
-          {/* The fleet is offered to avoid many spellings of one ship, but still typed freely: a trip can
-              be on a chartered ship, a rig or a yard. */}
           <input
             value={doc.site}
             onChange={(e) => change("site", e.target.value)}
@@ -210,7 +193,6 @@ export function Pack({ doc, change, level, LEVELS, onLevel, scheme, setWanted, c
         </div>
       </fieldset>
 
-      {/* The folder's shape sits with the trip: there is nothing to mark until the documents exist. */}
       <fieldset>
         <legend className="legend-row">
           <span>How many of each</span>
@@ -291,7 +273,6 @@ export function Tasks({ groups, orphans, on, sheets, lens, setLens, onMark, onAl
             finish it between them.
           </p>
         )}
-        {/* Grouped and collapsed like the scheme's own sections, so fifty-odd tasks are not one wall. */}
         {[...groups, ...(orphans.length ? [{ unit: "Your own words", items: orphans }] : [])].map((g) => (
           <Group
             key={g.unit}
@@ -352,8 +333,6 @@ export function Areas({ groups, on, sheets, lens, setLens, onMark, onAll, into, 
             <i style={{ width: `${total ? Math.round((covered / total) * 100) : 0}%` }} />
           </div>
         )}
-        {/* Reads the criteria against what the document says was done, for the lensed document or all;
-            it only ever adds. */}
         <button
           className={`mine read${reading ? " going" : ""}`}
           onClick={onRead}

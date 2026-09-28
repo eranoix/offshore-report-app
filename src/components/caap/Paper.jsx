@@ -1,9 +1,3 @@
-/**
- * The official form on screen: the company's own .docx with this document's words, laid out
- * by an engine that reads Word (a JavaScript redraw is never quite the document) and painted
- * here so the zoom is a size this owns. The engine says where every printed line and bordered
- * box sits, and a field is laid over each one.
- */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fillForm } from "../../engine/docx";
 import witnessPage from "../../forms/witness.pdf?url";
@@ -17,8 +11,6 @@ import { readerReady } from "../../engine/reader";
 import { asQA } from "../../engine/qa";
 import { readSetting, writeSetting } from "../../engine/vault";
 
-/* The four blank forms laid out once and carried with the site: offshore there is no server to
-   lay a document out, and that is exactly where somebody needs to see the form. */
 const BLANK_PAGE = {
   witness: witnessPage,
   observation: observationPage,
@@ -26,8 +18,6 @@ const BLANK_PAGE = {
   feedback: feedbackPage,
 };
 
-/* Documents already laid out, by what they say: a document that has not changed is not
-   sent back to be drawn again when moving between forms. */
 const drawnBefore = new Map();
 const KEEP = 12;
 
@@ -41,14 +31,8 @@ function remember(store, mark, value) {
   }
 }
 
-/* One document at a time: laying one out is heavy on the far end, and started together they
-   all take four times as long while the one being looked at waits behind the rest. */
 let queue = Promise.resolve();
 
-/**
- * A field that is never scrolled: the box takes the height its text needs, over the document
- * while in use, and goes back to the document's own box on leaving, once the layout is redone.
- */
 function InBox({ least, value, ...rest }) {
   const mine = useRef(null);
   useLayoutEffect(() => {
@@ -60,10 +44,6 @@ function InBox({ least, value, ...rest }) {
   return <textarea ref={mine} value={value} rows={1} {...rest} />;
 }
 
-/**
- * A printed line cannot grow, so a longer value closes up its letters rather than scrolling
- * sideways; below a floor it stops squeezing and lets the line run (unreadable is worse than untidy).
- */
 function OnLine({ size, value, ...rest }) {
   const mine = useRef(null);
   useLayoutEffect(() => {
@@ -78,7 +58,6 @@ function OnLine({ size, value, ...rest }) {
   return <input ref={mine} value={value} {...rest} />;
 }
 
-/** The lines each form prints before a blank, in the form's own words. */
 export const LINES = {
   witness: ["WITNESS", "POSITION & SITE", "NAME FOR WHOM TESTIMONY IS FOR", "RELATIONSHIP WITH CANDIDATE"],
   observation: ["ASSESSOR", "POSITION & SITE", "NAME OF CANDIDATE OBSERVED", "RELATIONSHIP WITH CANDIDATE"],
@@ -86,8 +65,6 @@ export const LINES = {
   feedback: ["ASSESSOR", "POSITION & SITE", "CANDIDATE", "RELATIONSHIP WITH CANDIDATE"],
 };
 
-/** Lays a document out and keeps it. Shared, so a form drawn for one tab is
- *  still there when you come back to it. */
 export async function drawForm(kind, doc, content, mark, signal) {
   const held = drawnBefore.get(mark);
   if (held) return held;
@@ -97,7 +74,6 @@ export async function drawForm(kind, doc, content, mark, signal) {
 }
 
 async function draw(kind, doc, content, mark, signal) {
-  /* It may have been drawn while this was waiting its turn. */
   const already = drawnBefore.get(mark);
   if (already) return already;
   if (signal?.aborted) throw Object.assign(new Error("cancelled"), { name: "AbortError" });
@@ -114,22 +90,14 @@ async function draw(kind, doc, content, mark, signal) {
   return address;
 }
 
-/**
- * Where the blanks sit on the form being used: a published form's own map, else the map the build
- * measured off the blank template (made by scripts/blank-pages.mjs; regenerate it whenever a form changes).
- */
 export const mapForm = (kind) => {
   const mine = heldAbout(kind)?.blanks;
   return mine?.fields?.length ? mine : BLANKS[kind] || { fields: [], boxes: [] };
 };
 
-/* What the drawn document depends on, by value: `doc` and `content` are rebuilt on every
-   render, so comparing them by identity would redraw a form when nothing on it moved. */
 export const formSignature = (kind, doc, content) =>
   JSON.stringify([
     kind,
-    /* WHICH form these values are written into, not just what they say: without it a form
-       published while the panel is open keeps drawing the old picture from the cache. */
     heldAbout(kind)?.version ?? 0,
     doc.candidate, doc.witness, doc.assessor, doc.site, doc.outcome, doc.discipline,
     doc.witnessPosition, doc.assessorPosition, doc.witnessRelationship, doc.assessorRelationship,
@@ -137,15 +105,11 @@ export const formSignature = (kind, doc, content) =>
     content?.text, content?.own, content?.questions,
   ]);
 
-/* A point of the document is a seventy-second of an inch, a pixel of a screen
-   a ninety-sixth: at "100%" the page is its printed size. */
 const REAL = 96 / 72;
 const STEPS = [50, 75, 100, 125, 150, 200, 250];
 
 export default function Paper({ kind, doc, content, generation, onLine, onBox }) {
   const [state, setState] = useState("opening");
-  /* "fit" means as wide as the panel; a number is that percentage of the real
-     page. Kept between visits, because the size someone reads at is theirs. */
   const [zoom, setZoom] = useState(() => readSetting("caap:zoom", "fit"));
   const [pages, setPages] = useState([]);
   const [wide, setWide] = useState(0);
@@ -154,7 +118,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
   const last = useRef("");
   const mark = formSignature(kind, doc, content);
 
-  /* How wide the panel is, so "as wide as the panel" can mean something. */
   useLayoutEffect(() => {
     const box = holder.current;
     if (!box) return undefined;
@@ -164,8 +127,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
     return () => watch.disconnect();
   }, []);
 
-  /* The blanks of this form: the printed lines from the blank template, and
-     the bordered boxes as they came out on the page that was drawn. */
   const blanks = mapForm(kind);
   const boxes = useMemo(
     () => fitBoxes(blanks.boxes || [], pages.map((p) => p.boxes || [])),
@@ -177,8 +138,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
     let live = true;
     const stop = new AbortController();
     const go = async () => {
-      /* The pages already up stay until the new ones are ready, so laying the
-         document out again never blanks the panel. */
       setState(drawn.current.length ? "redrawing" : "opening");
       const open = async (address) => {
         const pdfjs = await readerReady();
@@ -204,8 +163,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
         setState("shown");
       } catch (e) {
         if (!live || e?.name === "AbortError") return;
-        /* Nothing laid it out (offshore, or the engine is away): the blank form is still the
-           form, and the writing can be put on it and read back until there is a server again. */
         try {
           const got = await open(BLANK_PAGE[kind]);
           if (!live) return;
@@ -229,7 +186,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
   const first = pages[0];
   const scale = !first || !wide ? 1 : zoom === "fit" ? wide / first.w : ((Number(zoom) || 100) / 100) * REAL;
 
-  /* Paint every page at that size, at the screen's own sharpness. */
   useEffect(() => {
     if (!pages.length) return undefined;
     const jobs = [];
@@ -247,8 +203,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
     return () => jobs.forEach((job) => job.cancel?.());
   }, [pages, scale, kind]);
 
-  /* Read from what the size actually is, never from the number this render drew: quick
-     repeated presses would otherwise all work from the same figure and be lost. */
   const held = useRef(zoom);
   held.current = zoom;
   const at = (next) => {
@@ -265,7 +219,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
     at(next ?? (way < 0 ? 50 : 250));
   };
 
-  /* What the person typing is looking at, before the page has caught up. */
   const [typed, setTyped] = useState({});
   useEffect(() => setTyped({}), [kind]);
   const saying = useCallback((key, printed) => (typed[key] === undefined ? printed : typed[key]), [typed]);
@@ -282,10 +235,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
       ][which.indexOf(label)] || ""
     );
   };
-  /**
-   * What is in a box of this form. The knowledge form has no prose box: its box is the
-   * assessor's questions and the candidate's answers, so it is shown and read back as those.
-   */
   const boxValue = (i) => {
     if (kind === "knowledge") return asQA(content?.questions);
     return i === 0 ? content?.text || "" : content?.own || "";
@@ -295,8 +244,6 @@ export default function Paper({ kind, doc, content, generation, onLine, onBox })
     setTyped((all) => ({ ...all, [key]: value }));
     send(value);
   };
-  /* Once the page has been laid out again it holds the words itself, so what
-     was being shown over the paper is let go. */
   const settle = (key) =>
     setTyped((all) => {
       const rest = { ...all };

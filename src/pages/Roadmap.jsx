@@ -1,8 +1,6 @@
 import { useState } from "react";
 import releases from "../meta/releases.json";
 import roadmap from "../meta/roadmap.json";
-/* The version only. Importing the whole file ships the dependency list
-   and the build scripts to every browser that opens the page. */
 import { version } from "../../package.json";
 
 const STAGES = [
@@ -18,7 +16,6 @@ const longDate = (iso) => {
     : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 };
 
-/** Where the site says what it has done and what it intends to do. */
 export default function Roadmap() {
   const [tab, setTab] = useState("coming");
 

@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * A new build must take over an open page on its own, with nothing pressed: two
- * builds are served from the same address one after the other, and the page must
- * end up running code from the second.
- *
- *   node scripts/update.mjs
- */
 import { spawn, execSync } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import { createServer } from "node:http";
@@ -18,8 +11,6 @@ const ROOT = `${__REPO}`;
 const A = "/tmp/sw-build-a";
 const B = "/tmp/sw-build-b";
 
-/* The version is what the sidebar prints, so changing it changes the bundle
-   and gives the check something to read on the page. */
 const pkg = join(ROOT, "package.json");
 const original = readFileSync(pkg, "utf8");
 const was = JSON.parse(original).version;
@@ -40,8 +31,6 @@ for (const [dir, version] of [[A, then], [B, was]]) {
 restore();
 execSync("npx vite build", { cwd: ROOT, stdio: "ignore" });
 
-/* One address, two builds. Which one it serves is a variable, because that is
-   exactly what a deploy does to a browser that already has the site open. */
 let serving = A;
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
   ".png": "image/png", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".webmanifest": "application/manifest+json",
@@ -53,7 +42,6 @@ const site = createServer((req, res) => {
   const asked = normalize(decodeURIComponent(req.url.split("?")[0])).replace(/^(\.\.[/\\])+/, "");
   let file = join(serving, asked);
   if (!existsSync(file) || asked === "/") file = join(serving, "index.html");
-  /* The worker must never be handed a cached copy of itself. */
   res.setHeader("cache-control", "no-store");
   res.setHeader("content-type", TYPES[extname(file)] || "application/octet-stream");
   res.end(readFileSync(file));
@@ -68,8 +56,6 @@ const chrome = spawn("google-chrome",
 const stop = (code) => {
   chrome.kill();
   site.close();
-  /* Chrome may still be releasing its profile; a directory that will not delete
-     must not turn a passed run into a thrown error. */
   try { rmSync(PROFILE, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* temp */ }
   restore();
   process.exit(code);
@@ -108,12 +94,9 @@ const say = (ok, label, got = "") => {
 const running = () => evalIn(() => ({
   bundle: [...document.querySelectorAll("script[src]")].map((s) => s.src.split("/").pop()).join(" "),
   controlled: !!navigator.serviceWorker?.controller,
-  /* Asserted, not assumed: a leftover update offer nobody answers is the state
-     this check exists to prevent. */
   offered: !!document.querySelector(".fresh"),
 }));
 
-/** Wait for the page to come back on something other than `was`. */
 const cameBack = async (was) => {
   for (let n = 0; n < 60; n += 1) {
     await wait(500);
@@ -131,7 +114,6 @@ await wait(2500);
 const old = await running();
 say(old.controlled, "the worker is serving the page", old.bundle);
 
-/* The deploy. Nothing is pressed after this line. */
 serving = B;
 await evalIn(() => navigator.serviceWorker.getRegistration().then((r) => r && r.update()).then(() => true));
 const after = await cameBack(old.bundle);
@@ -139,9 +121,6 @@ say(after.bundle !== old.bundle, "and a newer one puts itself in place, with not
   `${old.bundle} → ${after.bundle}`);
 say(!after.offered, "and nothing was ever offered to be dismissed");
 
-/* The worker must not keep serving its own stored build: replacing a worker
- * means fetching its script from behind the gate, so a signed-out browser could
- * sit on a months-old build. Here the page is simply visited after a new build. */
 console.log("\nand when the worker is still holding the old build");
 
 execSync(`cp /tmp/sw-pkg.json ${pkg}`);
@@ -168,7 +147,6 @@ say(ended.bundle !== before.bundle,
   `${before.bundle} → ${ended.bundle}`);
 say(!ended.offered, "and there was nothing to press");
 
-/* And the half that must not be lost to it: a vessel with no signal. */
 console.log("\nand with nothing answering at all");
 
 answering = false;

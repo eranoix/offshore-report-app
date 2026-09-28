@@ -1,7 +1,3 @@
-/**
- * One drawn set: stroked at 1.5, 24-box, currentColor, so they inherit whatever
- * the row is doing.
- */
 const PATHS = {
   home: "M4 11.2 12 4l8 7.2M6.4 9.6V20h11.2V9.6",
   form: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6",

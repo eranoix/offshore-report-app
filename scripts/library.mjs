@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The library viewer on the real build: serves dist with a PDF and a Word file
- * behind a stub API, opens each, and counts the ink on the canvas. Pages are
- * painted rather than framed because the site answers X-Frame-Options: deny.
- *
- *   npm run build && node scripts/library.mjs
- */
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
@@ -29,10 +22,6 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const p = url.pathname;
   if (p === "/api/me") return res.end(JSON.stringify({ user: { email: "checks@forms.example.org", admin: true } }));
-  /* The site asks which forms are published as soon as it knows who is asking.
-     A stub that answers /api/me and not this one makes the page throw a failed
-     request into everybody's console — which is exactly what the check below
-     is watching for. */
   if (p === "/api/render" && url.searchParams.get("t") === "manifest") {
     res.writeHead(200, { "content-type": "application/json" });
     return res.end(JSON.stringify({ forms: {} }));

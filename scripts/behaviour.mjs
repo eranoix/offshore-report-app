@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * Checks on real documents that the trip feedback bank writes about the man, not the job, and that a
- * score of 3 (On Target, a good mark) does not read as a shortfall.
- *
- *   node scripts/behaviour.mjs          the bank and what it writes
- *   node scripts/behaviour.mjs --live   the same, written through the real upstream
- */
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
 import https from "node:https";
@@ -24,8 +17,6 @@ await build({
 });
 const { generateDocument, writeBlocks, buildContext, fill, jobWords, T, KEYS, PRESETS } = await import(out);
 
-/* A slot that names a piece of work fills with the campaign's own vocabulary,
-   which is the whole of what this form is not about. */
 const NAMES_WORK = ["task", "tool", "system", "fault", "fix", "inspection", "scope_short"];
 const slotsIn = (t) => [...String(t).matchAll(/\{([a-z_0-9]+)\}/g)].map((m) => m[1].replace(/[0-9]+$/, ""));
 const every = (node, path = "", hit = []) => {
@@ -39,8 +30,6 @@ const bank = every(T);
 const naming = bank.filter(([, t]) => slotsIn(t).some((s) => NAMES_WORK.includes(s)));
 say(!naming.length, `no phrase in the bank names a job`, naming.length ? naming[0][0] : `${bank.length} phrases`);
 
-/* On Target is a good mark. Written with the vocabulary of a shortfall it
-   reads as one, and the man it is written about reads it that way too. */
 const DEFICIT = ["under supervision", "continues to develop", "still need", "needs to", "encouraged to",
   "requires improvement", "lacks", "although", "however", "fell short", "must improve"];
 const hedged = [];
@@ -49,8 +38,6 @@ for (const [key, scores] of Object.entries(T.criteria))
     for (const word of DEFICIT) if (phrase.toLowerCase().includes(word)) hedged.push(`${key}: ${word}`);
 say(!hedged.length, `a 3 is written as a solid trip, not as a shortfall`, hedged.join("; ") || "11 criteria");
 
-/* And the reverse, so this does not pass by the bank going bland: what is
-   actually wrong still has to be sayable at 1 and 2. */
 const critical = Object.values(T.criteria)
   .flatMap((s) => [...(s["1"] || []), ...(s["2"] || [])])
   .filter((p) => DEFICIT.some((w) => p.toLowerCase().includes(w)));
@@ -83,7 +70,6 @@ say(!named.length, `100 documents name no job, no tooling and no system`, named[
 say(!unfilled.length, `and leave no slot unfilled`, unfilled[0] || "");
 say(!over.length, `every comment fits the cell`, over[0] || `under ${LIMIT} characters`);
 
-/* A sheet of straight threes must come out in the voice of a solid trip, not the one kept for reports with twos. */
 const ctx = buildContext(DOC);
 const flat = Object.fromEntries(KEYS.map((k) => [k, { score: 3, comment: "" }]));
 const solid = Array.from({ length: 40 }, () => writeBlocks(buildContext(DOC), flat).supervisor);
@@ -95,7 +81,6 @@ const slipped = solid.filter((text) => lowVoice.some((p) => text.includes(p)));
 say(!slipped.length, `a sheet of straight threes is written as a solid trip`,
   slipped.length ? `${slipped.length}/40 — “${slipped[0].slice(0, 80)}”` : "40 of 40");
 
-/* A name given as an initial is not the end of a sentence. */
 const initial = fill("{first} wants to do the job well.", buildContext({ ...DOC, crew: "A. Moreau" }));
 const spelled = fill("{first} wants to do the job well.", buildContext({ ...DOC, crew: "Sam Rivera" }));
 const after = fill("{first} did what was asked. it held all trip.", buildContext(DOC));
@@ -131,7 +116,6 @@ if (process.argv.includes("--live")) {
     req.end(payload);
   });
 
-  /* The house style as it ships, not a copy of it: a copy is what drifts. */
   const src = readFileSync(`${__REPO}/src/engine/ai.js`, "utf8");
   const piece = (from) => {
     const at = src.indexOf(from);

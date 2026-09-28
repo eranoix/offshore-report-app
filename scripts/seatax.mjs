@@ -1,10 +1,3 @@
-/**
- * Checks the half-day test against a spreadsheet's own arithmetic: the ledger is
- * compared row by row with scripts/fixtures/days-at-sea-sample.xlsx, whose answers
- * LibreOffice recalculated from the sheet's formulas (see make-seatax-sample.mjs).
- *
- *   node scripts/seatax.mjs
- */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -30,7 +23,6 @@ const unesc = (t) =>
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
     .replace(/&amp;/g, "&");
 
-/** Every cell of one named sheet, by reference, with its formula and its value. */
 function read(bytes, wanted) {
   const zip = unzipSync(bytes);
   const sstXml = zip["xl/sharedStrings.xml"] ? strFromU8(zip["xl/sharedStrings.xml"]) : "";
@@ -65,8 +57,6 @@ function read(bytes, wanted) {
   return { cells, strings, zip, xml, parts: Object.keys(zip).sort() };
 }
 
-/* 1899-12-30, because in 1985 a spreadsheet decided 1900 was a leap year and
-   every spreadsheet since has had to agree with it. */
 const EPOCH = dayOf("1899-12-30");
 const fromSerial = (n) => (typeof n === "number" ? isoOf(Math.round(n) + EPOCH) : null);
 
@@ -78,8 +68,6 @@ if (!existsSync(HIS)) {
 const his = read(readFileSync(HIS), SHEET);
 const at = (ref) => his.cells.get(ref) ?? { v: null, f: null };
 
-/* The grid is two rows to an absence: the one he left on and the one he came
-   back on. Read down until the leaving dates run out. */
 const ledgerFromHis = [];
 const sheetSays = [];
 for (let leave = 2; ; leave += 2) {
@@ -104,8 +92,6 @@ for (let leave = 2; ; leave += 2) {
   });
 }
 
-/* Asked for by the parent below, to prove the answer does not depend on where
-   the reader is sitting. Printed and nothing else. */
 if (process.env.SEATAX_UNDER_TZ) {
   process.stdout.write(JSON.stringify(runLedger(ledgerFromHis)));
   process.exit(0);
@@ -119,8 +105,6 @@ say(ledgerFromHis[0].port === "Bergen, Norway" && ledgerFromHis[0].back === "201
   "the first one sailed for Bergen and came back on the 20th of June 2013",
   `${ledgerFromHis[0].left} → ${ledgerFromHis[0].back}`);
 
-/* Row for row, every column that carries a number, against what Calc worked
-   out from the formulas. The first row has no days in: nothing came before it. */
 const off = [];
 led.rows.forEach((r, i) => {
   const s = sheetSays[i];
@@ -161,8 +145,6 @@ say(led.qualifies && led.shortBy === 0, "and the period is long enough to be a c
 say(mustLeaveBy(ledgerFromHis) === led.failOn, "the date in the diary is the last day one can still be here",
   mustLeaveBy(ledgerFromHis));
 
-/* Standing on the day of any return has to give back that return's row, or the
-   two halves of this module disagree about the same arithmetic. */
 const disagree = led.rows.filter((r) => {
   const s = standing(ledgerFromHis, r.back);
   return s.total !== r.total || s.ukDays !== r.ukTotal || s.half !== r.half
@@ -185,8 +167,6 @@ say(onTheDay.failed === false && onTheDay.marginHalfDays === 0,
   `${onTheDay.on}: ${onTheDay.ukDays} in the UK against a half of ${onTheDay.half}`);
 say(dayAfter.failed === true,
   "and one more morning takes it", `${dayAfter.on}: ${dayAfter.ukDays} against ${dayAfter.half}`);
-/* The trap itself: had the margin been read as days rather than half-days, he
-   would have flown out 36 days too early and never known. */
 const asIfDays = standing(ledgerFromHis, isoOf(dayOf(lastBack) + Math.floor(led.marginHalfDays)));
 say(asIfDays.failed === false
   && asIfDays.marginHalfDays === led.marginHalfDays - Math.floor(led.marginHalfDays) * SEATAX.PER_DAY_OUT
@@ -276,8 +256,6 @@ say(mine.cells.get("I201").f === 'IF(B201=0,"*",B201+(2*(F201-G200)))',
 say(mine.cells.get("F201").f === 'IF(B201=0,"-",E201*0.5)' && mine.cells.get("C201").f === 'IF(B201=0,"-",B201-A200)',
   "with the half and the days out in the shapes the book itself uses");
 
-/* A value with no formula beside it is a number that will not move when
-   somebody edits the sheet — which is the whole failure this file exists to avoid. */
 const stuck = [...mine.cells.entries()].filter(([ref, c]) => {
   const col = ref.replace(/\d+/g, "");
   const row = +ref.replace(/\D+/g, "");
@@ -300,8 +278,6 @@ say(spare.every((c) => c && c.f && (c.v === "-" || c.v === "*")),
   "the next trip has its formulas waiting for it — two dates typed in and the fail date moves",
   `${spare[5].f} → ${spare[5].v}`);
 
-/* The engine's key from the environment (scripts/with-engine.mjs sets it for
-   a local engine). */
 const key = process.env.DOCX_KEY || "";
 let pdf = null;
 let status = 0;

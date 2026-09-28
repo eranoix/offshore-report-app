@@ -1,9 +1,3 @@
-/**
- * Asks the live site for the served forms as a signed-in user would and checks
- * they match the repository's: same bytes, same fingerprint.
- *
- *   OFFSHORE_REPORT_EMAIL=... OFFSHORE_REPORT_PASSWORD=... node scripts/forms.mjs
- */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -54,15 +48,12 @@ for (const kind of KINDS) {
     `${(forms[kind]?.blanks?.fields || []).length} lines`);
 }
 
-/* The bytes themselves, one form, byte for byte. */
 const got = await mine(`/api/render?t=bytes&kind=witness&v=${forms.witness?.version}`);
 const bytes = Buffer.from(await got.arrayBuffer());
 const want = readFileSync(join(FORMS, "witness.docx"));
 say(got.ok && bytes.equals(want), "and hands over the document itself, byte for byte",
   `${(bytes.length / 1024).toFixed(0)}KB`);
 
-/* Publishing is an admin's to do, and the refusal must be the server's rather
-   than the page's: a button that is merely hidden is not a lock. */
 const tried = await mine("/api/render?t=publish&kind=witness", {
   method: "POST",
   headers: { "content-type": "application/octet-stream", "x-form": "{}" },

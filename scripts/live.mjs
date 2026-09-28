@@ -1,11 +1,3 @@
-/**
- * Opens the published site signed in and fails on anything the browser console
- * reports, covering the pages the API-less smoke test never runs.
- *
- *   OFFSHORE_REPORT_EMAIL=... OFFSHORE_REPORT_PASSWORD=... npm run live
- *
- * No credentials live in the repository; without them it says so and stops.
- */
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import WebSocket from "ws";
@@ -91,9 +83,6 @@ for (const route of ROUTES) {
   await wait(9000);
   const painted = (await evaluate("document.getElementById('root')?.children.length ?? -1")) ?? -1;
   const blank = painted < 1;
-  /* Nothing may push the page sideways. A screen that scrolls left and right
-     is how a panel that grew, or an editor that was given the wrong box,
-     announces itself — and it is invisible in a screenshot of the top left. */
   const sideways = await evaluate(
     "document.documentElement.scrollWidth > innerWidth + 2",
   );

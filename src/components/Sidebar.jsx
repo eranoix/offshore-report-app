@@ -4,11 +4,6 @@ import { packedAt, packedForms } from "../engine/forms";
 import { readSetting, release, writeSetting } from "../engine/vault";
 import { Mark } from "./Logo";
 
-/**
- * The site's sidebar. It retracts to icons on its own — on a narrow screen, and
- * whenever you are not pointing at it — so the page you are working on keeps the
- * room. Hovering brings the labels back without a click.
- */
 const STORAGE = "offshore-report:sidebar";
 
 export const TOOLS = [
@@ -39,8 +34,6 @@ export default function Sidebar({ path, go, version, isAdmin }) {
   }, [pinned]);
 
   async function signOut() {
-    /* Signing out must never be refusable: the session is ended on the server
-       when it can be, and this browser is emptied either way. */
     let reached = false;
     try {
       const res = await fetch("/api/logout", { method: "POST" });
@@ -48,13 +41,8 @@ export default function Sidebar({ path, go, version, isAdmin }) {
     } catch {
       reached = false;
     }
-    /* The paperwork leaves the machine with the person: nothing of theirs is
-       left for whoever signs in next. */
     release();
     if (!reached) {
-      /* The cookie is the server's and cannot be reached from here. Nothing of
-         yours is left on this browser, but the session itself may still stand,
-         and you are the one who needs to know that. */
       alert(
         "Your work has been cleared from this browser. The sign-out did not reach the server, so the session may still be open — sign out again when you have signal.",
       );
@@ -88,7 +76,7 @@ export default function Sidebar({ path, go, version, isAdmin }) {
               aria-current={path === t.path ? "page" : undefined}
               onClick={(e) => {
                 e.preventDefault();
-                e.currentTarget.blur(); // a mouse click must not leave the rail open
+                e.currentTarget.blur();
                 go(t.path);
               }}
             >
@@ -100,9 +88,6 @@ export default function Sidebar({ path, go, version, isAdmin }) {
       </ul>
 
       <span className="sb-version">v{version}</span>
-      {/* The copy that runs from a folder carries the forms as they were when
-          it was built and has no way of asking for newer ones. Somebody
-          offshore has no way of knowing that unless it says so. */}
       {__OFFLINE__ && packedAt() && (
         <span
           className="sb-packed"

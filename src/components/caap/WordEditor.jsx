@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-/**
- * The document server's own Word editor, running against the real .docx. Where to fetch and save are minted
- * and signed on the server, because it would otherwise fetch and overwrite whatever a browser asks.
- */
 export default function WordEditor({ kind, onSaved, onFail }) {
   const box = useRef(null);
   const editor = useRef(null);
   const [state, setState] = useState("opening");
-  /* Where the document server is, and whether it answered the site just now.
-     Both are needed to say anything true when the editor does not open. */
   const [server, setServer] = useState(null);
 
   useEffect(() => {
@@ -27,9 +21,6 @@ export default function WordEditor({ kind, onSaved, onFail }) {
         if (!alive) return;
         if (!window.DocsAPI) throw new Error("the document server answered but its editor did not load");
 
-        /* A fresh box each time: the editor writes an iframe into whatever it
-           is given and does not tidy up after a form is swapped underneath
-           it. */
         const at = document.createElement("div");
         at.id = `word-${kind}-${Date.now()}`;
         box.current.appendChild(at);
@@ -42,9 +33,6 @@ export default function WordEditor({ kind, onSaved, onFail }) {
           events: {
             onAppReady: () => alive && setState("open"),
             onDocumentReady: () => alive && setState("open"),
-            /* Saved is the document server telling the page what it has
-               already told the site: the bytes are kept, and what happens to
-               them is still a press away. */
             onDocumentStateChange: (e) => { if (!e?.data && alive) onSaved?.(); },
             onError: (e) => {
               if (!alive) return;
@@ -67,8 +55,6 @@ export default function WordEditor({ kind, onSaved, onFail }) {
     };
   }, [kind, onSaved, onFail]);
 
-  /* The editor replaces the box's contents with its own iframe, so React must never render children into
-     it (removeChild throws NotFoundError); anything else goes beside the box. */
   return (
     <div className={`word is-${state}`}>
       <div className="word-here" ref={box} />
@@ -78,10 +64,6 @@ export default function WordEditor({ kind, onSaved, onFail }) {
   );
 }
 
-/**
- * Why the editor did not open: the site asks whether the server answers from its side, so a browser-side
- * block (e.g. a network substituting certificates) is not reported as the server being unreachable.
- */
 function Stopped({ server }) {
   const blocked = server?.up;
   return (
@@ -122,7 +104,6 @@ function Stopped({ server }) {
   );
 }
 
-/* One script, once, however many times a form is opened. */
 const loading = new Map();
 function load(src) {
   if (loading.has(src)) return loading.get(src);

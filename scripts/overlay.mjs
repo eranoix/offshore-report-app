@@ -1,13 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The writing box, measured on the page actually drawn: lays out a short and a
- * long document through the real engine, reads the boxes from the drawn pages as
- * the panel does, and fails if the field would not follow the box.
- *
- *   node scripts/overlay.mjs
- *
- * Without the engine's key it says so and stops rather than passing on nothing.
- */
 import { build } from "esbuild";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -22,8 +13,6 @@ if (!KEY) {
   process.exit(2);
 }
 
-/* The browser's copy of the engine, in Node: the templates become paths and
-   fetch reads them off the disk, which is what a URL is here. */
 const bundle = "/tmp/overlay-docx.mjs";
 await build({
   entryPoints: [`${ROOT}/src/engine/docx.js`],
@@ -92,9 +81,6 @@ say(short.flat().length > 0, "the drawn page gives up its boxes", `${short.flat(
 const a = fitBoxes(map, short)[0];
 const b = fitBoxes(map, long)[0];
 say(Boolean(a && b), "and the blank's box is matched to the drawn one");
-/* The map holds the writing area and the drawing holds the border around it,
-   so the two never agree to the pixel. What must not move between a short
-   document and a long one is the left edge and the width. */
 say(Math.abs(a.x - b.x) < 0.01 && Math.abs(a.w - b.w) < 0.01,
   "the left edge and the width do not move when the box grows",
   `x ${a.x.toFixed(3)}/${b.x.toFixed(3)} w ${a.w.toFixed(3)}/${b.w.toFixed(3)}`);
@@ -105,7 +91,6 @@ say(b.h > a.h * 1.8, "and a long statement grows the field with the box",
 say(b.h > map[0].h * 1.8, "which the blank's own measurement never did",
   `blank ${(map[0].h * 100).toFixed(1)}%`);
 
-/* Nothing drawn is the offshore case: the blank's measurement has to stand. */
 const none = fitBoxes(map, [])[0];
 say(none.h === map[0].h && none.page === map[0].page, "with nothing drawn, the blank still stands");
 

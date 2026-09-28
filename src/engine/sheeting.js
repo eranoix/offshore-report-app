@@ -1,21 +1,7 @@
-/**
- * The guard for workbook forms. The document guard checks paragraph anchors,
- * which a workbook does not have, so it passes everything. The quiet failure
- * here is a formula typed over with a number, which freezes that row for every
- * later copy, so a computed cell with a value and no formula is refused by name.
- */
 import { unzipSync, strFromU8 } from "fflate";
 
-/** The sheet the tracker runs on. Everything below is asked of that one. */
 export const SHEET = "SEATAX DAYS";
 
-/**
- * The eleven headings, in the order they sit across the top — A to K.
- *
- * FORREIGN is spelled the way the workbook spells it. It is the company's own
- * file and its own word; correcting it here would mean the guard refused the
- * very template it is guarding.
- */
 export const COLUMNS = [
   "Day Left UK",
   "Day Return UK",
@@ -30,15 +16,6 @@ export const COLUMNS = [
   "DAYS IN HAND",
 ];
 
-/**
- * The columns that work themselves out.
- *
- * C to K, less J: the port of call is typed in by hand like the two dates
- * beside it, and demanding a formula there would refuse every workbook there
- * has ever been. Measured on the company's own file: C, D, E, F, G, H, I and K
- * carry a formula in every row that carries anything at all, and J carries
- * sixty-six pieces of text and not one formula.
- */
 export const COMPUTED = ["C", "D", "E", "F", "G", "H", "I", "K"];
 
 const LETTERS = "ABCDEFGHIJK".split("");
@@ -57,8 +34,6 @@ const nameOf = (attrs) => {
   return m ? { ref, col: m[1], row: Number(m[2]) } : { ref, col: "", row: 0 };
 };
 
-/* Whatever the workbook keeps its text in. A string can live in the shared
-   table, inline in the cell, or as the answer a formula last gave. */
 function said(inner, strings) {
   const kind = inner.type;
   if (kind === "s") {
@@ -71,7 +46,6 @@ function said(inner, strings) {
   return un((inner.body.match(/<v>([^<]*)<\/v>/) || [])[1] || "");
 }
 
-/** The shared string table, in order, or nothing if there is not one. */
 function stringsOf(zip) {
   const part = zip["xl/sharedStrings.xml"];
   if (!part) return [];
@@ -81,14 +55,6 @@ function stringsOf(zip) {
   );
 }
 
-/**
- * Which part of the file holds which sheet.
- *
- * The name a person sees is in the workbook; the file it is kept in is behind
- * a relationship id. Nothing may assume sheet1.xml — a sheet added, removed or
- * reordered in the editor renumbers them, and a guard reading the wrong part
- * is a guard reading somebody else's grid.
- */
 export function sheetsOf(zip) {
   const book = zip["xl/workbook.xml"];
   const rels = zip["xl/_rels/workbook.xml.rels"];
@@ -106,7 +72,6 @@ export function sheetsOf(zip) {
   return out;
 }
 
-/** Every cell of a sheet that holds anything, by name. */
 function cellsOf(xml, strings) {
   const out = new Map();
   for (const m of xml.matchAll(CELL)) {
@@ -118,9 +83,7 @@ function cellsOf(xml, strings) {
       ref,
       col,
       row,
-      /* A formula, whether it carries its own text or shares a neighbour's. */
       formula: /<f\b/.test(body),
-      /* Something in it that is not a formula's answer. */
       holds: /<v>|<is\b/.test(body),
       text: said({ type: at(attrs, "t"), body }, strings),
     });
@@ -128,7 +91,6 @@ function cellsOf(xml, strings) {
   return out;
 }
 
-/** The eleven headings as this workbook actually has them, A to K. */
 export function headingsOf(bytes) {
   const zip = unzipSync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
   const part = sheetsOf(zip)[SHEET];
@@ -137,10 +99,6 @@ export function headingsOf(bytes) {
   return LETTERS.map((c) => cells.get(`${c}1`)?.text.trim() || "");
 }
 
-/**
- * Why this workbook cannot go in front of everybody, as readable sentences
- * (same shape as `whyKeep` in wording.js). An empty list means nothing is wrong.
- */
 export function whyRefuse(bytes) {
   let zip;
   try {
@@ -161,8 +119,6 @@ export function whyRefuse(bytes) {
   const cells = cellsOf(strFromU8(zip[part]), strings);
   const out = [];
 
-  /* The headings, in their order. The eleven are what anybody reading the
-     tracker reads across the top, and they are how a column is known. */
   LETTERS.forEach((col, i) => {
     const want = COLUMNS[i];
     const got = cells.get(`${col}1`)?.text.trim() || "";
@@ -176,9 +132,6 @@ export function whyRefuse(bytes) {
     });
   });
 
-  /* The quiet one. A computed cell that holds something of its own has had its
-     formula typed over, and from that row on it never works anything out
-     again. */
   for (const cell of cells.values()) {
     if (cell.row < 2) continue;
     if (!COMPUTED.includes(cell.col)) continue;

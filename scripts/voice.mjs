@@ -1,10 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * Writes one testimony through the real upstream with the real house style and
- * prints it with its word count, because the voice can only be judged by reading.
- *
- *   node scripts/voice.mjs [how-many-areas]
- */
 import { build } from "esbuild";
 import https from "node:https";
 
@@ -51,11 +45,8 @@ await build({ entryPoints: [`${__REPO}/src/engine/docx.js`], bundle: true, forma
   } }] });
 const { askFor } = await import(engine);
 
-/* The house style, lifted out of the panel so what is read here is what ships. */
 const panel = (await import("node:fs")).readFileSync(`${__REPO}/src/pages/Caap.jsx`, "utf8");
 const HOUSE = panel.slice(panel.indexOf("const coverFor = (areas) => {"), panel.indexOf("\n  };", panel.indexOf("const coverFor")));
-/* The whole of it, from the first backtick to the last: taking only the tail
-   dropped the clause that forbids a list, and what came back was a list. */
 const style = HOUSE.slice(HOUSE.indexOf("`") + 1, HOUSE.lastIndexOf("`"))
   .replace(/\$\{[\s\S]*?\n *\}/g, " — a clear sentence each")
   .replace(/\$\{[^}]*\}/g, "");
@@ -94,15 +85,9 @@ const say = (ok, label, got = "") => {
 const words = text.split(/\s+/).filter(Boolean).length;
 const sentences = text.split(/(?<=[.!?])\s+/).filter((x) => x.trim().length > 3);
 const longest = Math.max(...sentences.map((x) => x.split(/\s+/).length));
-/* The words that carry nothing, and the habit of writing what the person did
-   NOT do — both named in the house style, both read back here. */
 const FILLER = /\b(appropriate|relevant|proper(ly)?|thorough(ly)?|effectively|consistently|methodically|as required|in a controlled manner)\b/gi;
 const NEGATIVE = /\b(rather than|did not|does not|didn't|doesn't|without (being|escalating|having|needing|any need))\b/gi;
 const JUDGING = /\b(to a standard|which reduces|this demonstrates|demonstrating that|it is clear that|exemplary|excellent)\b/gi;
-/* What is wrapped in asterisks is the scheme's own wording, quoted so the
-   reader can see which area a sentence answers — "the ability to effectively
-   communicate" is the criterion's phrase, not the writer's padding. The
-   writer's own words are what is read here. */
 const own = text.replace(/\*\*[^*]+\*\*/g, " ");
 const found = (re) => [...new Set((own.match(re) || []).map((w) => w.toLowerCase()))];
 

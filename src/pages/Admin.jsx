@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import Icon from "../components/Icon";
 
-/** Accounts. Only the administrator sees this page, and the API checks again. */
 export default function Admin() {
   const [users, setUsers] = useState([]);
   const [error, setError] = useState("");

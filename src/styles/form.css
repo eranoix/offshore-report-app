@@ -1,5 +1,3 @@
-/* Generated from NW-CAP-001 Rev 1 — generated from trip-feedback.html, do not edit by hand */
-
   
   .sheet *{ box-sizing: border-box;
  }
@@ -13,21 +11,13 @@
   .sheet .page{ position: relative;
  break-inside: avoid;
  padding-bottom: 2mm;
- /* Nothing leaves the sheet: if a measurement is ever off, the page clips
-    rather than pushing the footer off the paper. */
  overflow: hidden;
- /* One page, one sheet of A4. What does not fit is carried to the next sheet
-    by the layout, never spilled past the frame. */
  height: 265mm;
  page-break-after: always;
- /* The footer is pinned to the bottom of the sheet, so the flowing content
-    stops above it and the comments box takes whatever room is left. */
  display:flex;
  flex-direction:column;
  }
 
-  /* Supervisor comments: the rest of page one, not a fixed block. An empty box
-     shrinks to fit rather than pushing the signature off the paper. */
   .sheet .sup{ flex:1 1 auto;
  min-height:26mm;
  }
@@ -172,8 +162,6 @@
   .sheet .notes p{ margin:0 0 7px;
  }
 
-  /* The footer is part of the page, not painted over it, and sits at the bottom
-     of the sheet whatever the page holds. */
   .sheet .foot{ margin-top:auto;
  padding-top:2mm;
  flex:none;
@@ -249,8 +237,6 @@
 
   .sheet.wt .wt-box{ border:1px solid #000;
  padding:3mm;
- /* Takes the room left on the page, and never less than its own text: a flex
-    item that may shrink is how the words ended up outside the frame. */
  flex:1 0 auto;
  min-height:96mm;
  font-size:9pt;
@@ -258,8 +244,6 @@
  white-space:pre-wrap;
  }
 
-  /* A box in a flowed form takes the room the page has left and no more, and must
-     be free to shrink: what does not fit is carried to the next sheet. */
   .sheet.wt .flow-box.wt-box{ flex:1 1 auto;
  min-height:24mm;
  overflow:hidden;
@@ -313,8 +297,6 @@
  overflow:hidden;
  }
 
-  /* An answer takes the room the page has left, and is cut before the footer
-     rather than painted over it. */
   .sheet.wt .qa-text.answer{ flex:1 1 auto;
  min-height:0;
  overflow:hidden;

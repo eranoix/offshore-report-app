@@ -1,9 +1,3 @@
-/**
- * Where the blanks are on the page. The forms are printed ones with no digital
- * fields, and the company's document is left alone, so the blanks are found on
- * the page it draws. Positions are fractions of the page, never pixels, so they
- * hold at any size.
- */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, readdir, writeFile, mkdtemp, rm } from "node:fs/promises";
@@ -12,18 +6,14 @@ import { join } from "node:path";
 
 const run = promisify(execFile);
 
-/* The line a form prints immediately before a box it expects writing in. */
 const OPENS = [
   /please see reverse|please see below|see reverse for guidance/i,
   /responses is given below/i,
   /comments of candidate performance/i,
   /comments in relation to the/i,
 ];
-/* And whatever closes one: the confirmation, the outcome, or the next box. */
 const CLOSES = /I confirm the above|Assessment Outcome|comments in relation to the/i;
 
-/* pdftotext answers in XML, so the form's own ampersands arrive escaped and
-   "POSITION & SITE" never matches the label the form prints. */
 const plain = (t) =>
   t.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
 
@@ -51,10 +41,6 @@ function parse(xml) {
 
 const dotted = (t) => t.length > 3 && /^[….]+$/.test(t);
 
-/**
- * The blanks of one document: the named lines, and the box for the statement.
- * `labels` are the words the form prints before each blank, in order.
- */
 export function blanksOf(pages, labels) {
   const fields = [];
   const want = labels.map((l) => ({ label: l, key: l.toUpperCase().replace(/\s+/g, " ") }));
@@ -64,12 +50,9 @@ export function blanksOf(pages, labels) {
       const flat = line.text.toUpperCase().replace(/\s+/g, " ");
       const hit = want.find((w) => !fields.some((f) => f.label === w.label) && flat.startsWith(`${w.key}:`));
       if (!hit) continue;
-      /* Where the label stops is where the writing starts. */
       const parts = page.words.filter((w) => w.y0 >= line.y0 - 1 && w.y1 <= line.y1 + 1);
       const colon = parts.filter((w) => w.text.includes(":")).slice(-1)[0] || parts.slice(-1)[0];
       if (!colon) continue;
-      /* The dotted line under it says how wide the blank is; failing that, the
-         line runs to the right margin the form uses. */
       const under = page.words.find((w) => dotted(w.text) && w.y0 > line.y1 && w.y0 < line.y1 + 22);
       const right = under ? under.x1 : Math.max(...page.words.map((w) => w.x1));
       fields.push({
@@ -83,10 +66,6 @@ export function blanksOf(pages, labels) {
     }
   });
 
-  /* Every box a form expects writing in — the feedback form has two, the
-     assessor's and the candidate's — each running from the line that
-     introduces it to whatever closes it: the confirmation, the outcome, the
-     next box, or the foot of the page. */
   const boxes = [];
   pages.forEach((page, at) => {
     for (const opens of page.lines.filter((l) => OPENS.some((r) => r.test(l.text)))) {
@@ -99,9 +78,6 @@ export function blanksOf(pages, labels) {
       const h = (bottom - opens.y1 - 16) / page.h;
       if (h < 0.04) continue;
       const y = (opens.y1 + 10) / page.h;
-      /* A form can say twice that writing goes below — an instruction and then
-         a note about the guidance overleaf — and each would open a box on top
-         of the one before. The first one wins; the page has only one space. */
       const overlaps = boxes.some((b) => b.page === at && y < b.y + b.h && y + h > b.y);
       if (overlaps) continue;
       boxes.push({ page: at, x: left / page.w, y, w: (right - left) / page.w, h });
@@ -111,8 +87,6 @@ export function blanksOf(pages, labels) {
   return { fields, boxes };
 }
 
-/** The words of every page, with where each one sits. The bytes are written
- *  out and read back because the text reader works on a file, not a stream. */
 export async function pagesOf(pdf) {
   const dir = await mkdtemp(join(tmpdir(), "map-"));
   try {
@@ -125,7 +99,6 @@ export async function pagesOf(pdf) {
   }
 }
 
-/** The pages as pictures, plus where the blanks are on them. */
 export async function sheetOf(dir, pdf, labels) {
   await run("pdftotext", ["-bbox-layout", pdf, join(dir, "map.xml")], { timeout: 30_000 });
   const pages = parse(await readFile(join(dir, "map.xml"), "utf8"));

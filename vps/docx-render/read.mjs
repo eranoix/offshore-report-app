@@ -1,8 +1,3 @@
-/**
- * Reading a donation that does not hand over its words: a second pass for files
- * the browser could not read (scans, pre-2007 Word, spreadsheets, pictures in a
- * .docx). Runs only when the first, cheap reading came back with nothing.
- */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, readFile, writeFile, readdir, rm } from "node:fs/promises";
@@ -12,14 +7,11 @@ import { strFromU8, unzipSync } from "fflate";
 
 const run = promisify(execFile);
 
-/* A scan of a long document is still a document; a hundred pages of one is a
-   bill nobody asked for. Everything in this library sits far under this. */
 const PAGES = 24;
 const OCR_MS = 240_000;
 
 const head = (bytes, n) => Buffer.from(bytes.subarray(0, n)).toString("hex").toUpperCase();
 
-/** What the bytes actually are, whatever the name claims. */
 export function shapeOf(bytes, name = "") {
   const magic = head(bytes, 8);
   const ext = String(name).toLowerCase().split(".").pop();
@@ -38,11 +30,6 @@ const tidy = (t) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-/**
- * How much of a text is real words. Garbled OCR ("ouoe (gS mp oomwagoao igi m")
- * is about a tenth words, a page read properly about three quarters; indexed,
- * garbage is worse than an empty file because the search can return it.
- */
 function wordliness(text) {
   const toks = String(text).split(/\s+/).filter(Boolean);
   if (toks.length < 15) return 0;
@@ -51,9 +38,6 @@ function wordliness(text) {
 }
 const READABLE = 0.4;
 
-/** Read one picture, upright or not. `--psm 1` finds the orientation and turns
- *  the page; `--psm 6` reads a plain block better when there is nothing to
- *  turn. Whichever comes back looking more like words is the one kept. */
 async function readPicture(file) {
   let best = "";
   let score = 0;
@@ -84,8 +68,6 @@ async function readPictures(files) {
 }
 
 async function fromPdf(dir, file) {
-  /* A scanner can embed its own garbled reading as a long text layer, so the
-     layer is judged the way a reading is and whichever looks more like words is kept. */
   let layer = "";
   try {
     ({ stdout: layer } = await run("pdftotext", ["-q", file, "-"], { timeout: 60_000, maxBuffer: 16 * 1024 * 1024 }));
@@ -103,8 +85,6 @@ async function fromPdf(dir, file) {
   return wordliness(drawn) >= written ? drawn : layer;
 }
 
-/** Word from before 2007. A reader that knows the old format first; the
- *  office suite as the fallback, since it opens what antiword refuses. */
 async function fromOldWord(dir, file) {
   try {
     const { stdout } = await run("antiword", ["-w", "0", file], { timeout: 60_000, maxBuffer: 16 * 1024 * 1024 });
@@ -131,8 +111,6 @@ const entities = (s) =>
     .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
     .replace(/&amp;/g, "&");
 
-/** A spreadsheet: the words are shared in one part and pointed at from the
- *  sheets, so the shared part alone carries every phrase the file holds. */
 function fromSheet(zip) {
   const shared = zip["xl/sharedStrings.xml"];
   const lines = [];
@@ -142,7 +120,6 @@ function fromSheet(zip) {
       if (text.trim()) lines.push(text.trim());
     }
   }
-  /* Numbers live in the sheets themselves — dates, counts, dive numbers. */
   for (const [name, part] of Object.entries(zip)) {
     if (!/^xl\/worksheets\/.*\.xml$/.test(name)) continue;
     const nums = [...strFromU8(part).matchAll(/<c[^>]*(?!t="s")[^>]*><v>([\d.]+)<\/v><\/c>/g)].map((m) => m[1]);
@@ -151,7 +128,6 @@ function fromSheet(zip) {
   return lines.join("\n");
 }
 
-/** A .docx whose words are all inside pictures. */
 async function fromWordPictures(dir, zip) {
   const media = Object.keys(zip).filter((n) => /^word\/media\/.*\.(png|jpe?g)$/i.test(n)).slice(0, PAGES);
   if (!media.length) return "";
@@ -171,7 +147,6 @@ function fromWord(zip) {
   return entities(xml.replace(/<[^>]+>/g, ""));
 }
 
-/** The words in a file the first reading could not open. */
 export async function wordsOf(bytes, name = "") {
   const shape = shapeOf(bytes, name);
   if (shape === "unknown") return "";

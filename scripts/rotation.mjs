@@ -1,9 +1,3 @@
-/**
- * The rotation, held to arithmetic: each assertion is a way this breaks that
- * would not look broken (a DST turn of 27 days, a birthday counted twice).
- *
- *   node scripts/rotation.mjs
- */
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -16,7 +10,6 @@ import { icsOf } from "../src/engine/ics.js";
 import { COUNTRIES, easterDay, holidaysIn } from "../src/engine/holidays.js";
 
 const fails = [];
-/* A plan with the commonest rotation set — a new plan has none. */
 const SET = { ...BLANK_PLAN, pattern: { on: 28, off: 28, hotelOut: 0, hotelBack: 0, travel: 0 } };
 const say = (ok, label, got = "") => {
   console.log(`${ok ? "  ok " : "FAIL "} ${label}${got ? ` — ${got}` : ""}`);
@@ -33,8 +26,6 @@ const plan = {
   ],
 };
 
-/* Asked for by the parent below, to prove the answer does not depend on where
-   the reader is sitting. Printed and nothing else. */
 if (process.env.ROTATION_UNDER_TZ) {
   process.stdout.write(JSON.stringify(turnsOf(plan)));
   process.exit(0);
@@ -64,16 +55,12 @@ const far = under("Pacific/Auckland");
 say(here === there && there === far,
   "the same rotation in São Paulo, London and Auckland", here === far ? "identical" : "they differ");
 
-/* Brazil puts its clocks forward in the middle of October in the years it
-   keeps summer time at all, and a turn spanning it is where a local Date would
-   quietly give back 27 days. */
 const october = turnsOf({ ...plan, anchor: "2026-10-01", horizon: 3 });
 say(october.every((t) => t.aboard.days === 28 && t.home.days === 28),
   "and a turn across the October clock change is still 28 days",
   october.map((t) => t.aboard.days).join(","));
 
 const newYear = turnsOf({ ...plan, anchor: "2026-12-20", horizon: 2 });
-/* Christmas is on it because he took it: a holiday is never there by itself. */
 const christmas = marksOf({ ...plan, anchor: "2026-12-20", holidays: { country: "BR", take: ["Natal"], asked: true } }, "2026-12-20", "2027-03-01");
 const xmasDay = christmas.find((m) => m.on === "2026-12-25");
 say(newYear[0].aboard.days === 28 && Boolean(xmasDay),
@@ -102,7 +89,6 @@ say(birthdays.length === yearsInWindow.size && birthdays.length > 0,
 say(birthdays.every((m) => m.note && +m.note > 0),
   "and one entered with its year says how old", birthdays[0]?.note || "no age");
 
-/* The edge, which is where a crew change is. */
 const edgePlan = {
   ...plan,
   dates: [
@@ -164,9 +150,6 @@ const gone = marksOf(plan, "2000-01-01", window.to, { certificates: certs })
   .some((m) => m.what.startsWith("MIST"));
 say(gone, "one that has already expired is not quietly dropped");
 
-/* Three real 28/28 turns: 28 days aboard, then 28 at home before the next
-   one starts. Written out rather than generated, so that a mistake in the
-   arithmetic under test cannot also write the fixture. */
 const three = [
   { start: "2025-01-05", end: "2025-02-01" },
   { start: "2025-03-02", end: "2025-03-29" },
@@ -195,9 +178,6 @@ say(soon?.kind === "fly out" && soon.inDays === 9, "the next crew change is coun
   soon ? `${soon.kind} in ${soon.inDays} days` : "none");
 say(isoOf(dayOf("2026-03-14")) === "2026-03-14", "a day survives the round trip to a number and back");
 
-/* A night in a hotel either side and a day in the air each way. Two of those
-   four are taken out of the time at home and two are added to the turn, which
-   is the whole reason the cycle has to be worked out rather than added up. */
 const five = {
   ...plan,
   anchor: "2026-01-28",
@@ -232,9 +212,6 @@ for (const t of five8) {
   for (let i = 1; i < t.legs.length; i += 1) {
     if (dayOf(t.legs[i].from) !== dayOf(t.legs[i - 1].to) + 1) tiled = false;
   }
-  /* A turn is longer than its cycle by exactly the part that was borrowed from
-     the time at home before it — the hotel nights out and the flight to them.
-     That difference is the whole reason the cycle is not the sum of the parts. */
   if (t.legs.map((l) => l.days).reduce((a, b) => a + b, 0) !== cycle + 2 + 1) tiled = false;
 }
 say(tiled, "a turn runs through its five states with no gap and no day counted twice",
@@ -281,9 +258,6 @@ say(["out", "hotel", "aboard", "back", "home", "days"].every((k) => summed[k] ==
 const leap = yearTally(five, 2028);
 say(leap.days === 366, "and a leap year has the day it is owed", `${leap.days}`);
 
-/* Reaching backwards. The dashboard is asked about last year as often as next,
-   and a projection that only counts forwards from the anchor answers by
-   guessing — which is the shift that has no symptom. */
 const reached = turnsAcross(five, "2024-01-01", "2027-12-31");
 const forward = turnsOf(five, { count: 8 });
 say(forward.every((t) => reached.find((r) => r.n === t.n)?.aboard.from === t.aboard.from),
@@ -317,8 +291,6 @@ const landingAndLeaving = away.every((a, i) => i === 0 || dayOf(a.from) > dayOf(
 say(landingAndLeaving, "two absences are never left touching, which would be one absence written twice");
 
 
-/* A day he has told the site about beats the pattern on that day only, and
-   moves the count with it, or the calendar and the year totals disagree. */
 console.log("\nand a day he tells it about beats the pattern, on that day only");
 
 const asPlanned = statesAcross(five, "2026-03-01", "2026-03-31");
@@ -339,8 +311,6 @@ say(countedTold.hotel === countedPlain.hotel + 1 && countedTold.days === counted
 say(countedTold.out + countedTold.hotel + countedTold.aboard + countedTold.back + countedTold.home === countedTold.days,
   "and the five states still account for every day of the month", `${countedTold.days}`);
 
-/* Agreeing with the pattern is not a fact worth keeping: kept, that day would
-   stop following the pattern the day the pattern changes, silently. */
 const agrees = withDay(five, "2026-03-10", asPlanned[9]);
 say(Object.keys(agrees.days || {}).length === 0,
   "a day set to what the plan already says is not written down at all",
@@ -589,7 +559,6 @@ const sug = eventsIn(rota, "2026-10-01", "2027-01-31").filter((e) => e.sort === 
 say(sug.map((e) => `${e.from}→${e.to}`).join(" ") === "2026-10-01→2026-10-28 2026-11-26→2026-12-23 2027-01-21→2027-02-17",
   "a rotation is offered as suggested stretches aboard, one event each — not a mark on every day", sug.map((e) => e.from).join(", "));
 say(!eventsIn(rota, "2026-10-01", "2026-10-31").some((e) => e.sort === "state"), "and nothing is told about any single day");
-/* He stayed four days longer than the suggestion. */
 const longer = withHitch(rota, "2026-10-01", "2026-11-01", "h1");
 const later = eventsIn(longer, "2026-10-01", "2027-01-31");
 const hitch = later.find((e) => e.sort === "hitch");

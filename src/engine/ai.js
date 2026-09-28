@@ -1,12 +1,5 @@
-/**
- * Generated writing: on when the page can reach the proxy, silently off when it
- * cannot (the offshore case). No key is in the bundle: the page posts to its own
- * /api/ai, which adds the credential on the server and requires a session.
- */
-const ENDPOINT = "/api/ai"; // same origin: the server holds the key
+const ENDPOINT = "/api/ai";
 
-/** Unreachable endpoint, blocked certificate, no signal — all the same to us. */
-// The offline build has no server to ask, so the writing never switches on.
 let reachable = __OFFLINE__ ? false : typeof navigator === "undefined" || navigator.onLine !== false;
 const listeners = new Set();
 
@@ -22,8 +15,6 @@ function setReachable(value) {
   if (!value) scheduleRecheck();
 }
 
-/* Keep re-probing, slowly and only while unreachable, so one bad minute does
-   not leave the page on the phrase bank until it is reloaded. */
 let recheck = null;
 let wait = 15_000;
 function scheduleRecheck() {
@@ -43,9 +34,6 @@ function scheduleRecheck() {
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => setReachable(false));
   window.addEventListener("online", () => setReachable(!__OFFLINE__));
-  /* A tab in the background has its timers throttled to about one a minute, so
-     the slow re-check cannot be the only way back. Looking at the page is the
-     other way: whenever it comes to the front, ask the endpoint again. */
   const lookAgain = () => {
     if (!reachable && !__OFFLINE__ && document.visibilityState === "visible") probe();
   };
@@ -53,15 +41,9 @@ if (typeof window !== "undefined") {
   window.addEventListener("focus", lookAgain);
 }
 
-/**
- * When the upstream tokens-per-minute limit is full, every call waits out the
- * time the first refusal reported, so the minute is waited once by everyone and
- * no request is sent into a minute already known to be full.
- */
 let shutUntil = 0;
 let telling = null;
 
-/** Tells you how long the door is shut, whenever that changes. */
 export function onBusy(fn) {
   telling = fn;
   return () => { telling = null; };
@@ -81,8 +63,6 @@ async function waitAtTheDoor() {
 }
 
 export async function ask(system, user, { maxTokens = 400, temperature = 0.85, context = null, use } = {}) {
-  // Asking is itself the best test: if we think we are offline, look again
-  // before refusing, so a button press is never wasted on a stale verdict.
   if (!reachable && !(await probe())) throw new Error("offline");
   await waitAtTheDoor();
   let res;
@@ -94,38 +74,27 @@ export async function ask(system, user, { maxTokens = 400, temperature = 0.85, c
         max_tokens: maxTokens,
         temperature,
         system,
-        // What this is about, so the server can look the matching pages of your
-        // own library out and show them to the writing. The documents never
-        // come to the browser.
         context,
         use,
         messages: [{ role: "user", content: user }],
       }),
     });
   } catch {
-    setReachable(false); // no signal, or the certificate was refused
+    setReachable(false);
     throw new Error("offline");
   }
   if (res.status === 429) {
-    /* Wait exactly as long as the refusal says is left of the minute: guessed
-       backoff spends every retry inside the same full minute. */
     const said = await res.text().catch(() => "");
     const found = said.match(/retry[^0-9]{0,20}(\d+(?:\.\d+)?)\s*s/i)
       || said.match(/"retry_after"\s*:\s*(\d+(?:\.\d+)?)/i);
     const header = Number(res.headers.get("retry-after"));
     const seconds = Number(found?.[1]) || (Number.isFinite(header) && header > 0 ? header : 0);
     const busy = new Error("busy");
-    /* A minute and a quarter is the whole window and then some: anything
-       longer than that is not a rate limit, and waiting on it would look like
-       the panel had hung. */
     busy.retryIn = Math.min(75, Math.max(1, Math.ceil(seconds || 20)));
-    /* And the door is shut for everyone, not only for this caller. */
     shutFor(busy.retryIn);
     throw busy;
   }
   if (!res.ok) {
-    // A gateway error is the writing machine having a bad minute, not the end
-    // of the session: ask the endpoint itself whether it is still there.
     if (res.status >= 500) probe();
     throw new Error(`endpoint returned ${res.status}`);
   }
@@ -141,15 +110,10 @@ export async function ask(system, user, { maxTokens = 400, temperature = 0.85, c
   return text.trim();
 }
 
-/** Quiet check at start-up: are we able to write today? */
 export async function probe() {
   if (__OFFLINE__) return false;
   try {
-    // A HEAD on the writing endpoint is enough to know whether we are online:
-    // any answer at all means the server is there.
     const res = await fetch(ENDPOINT, { method: "HEAD", cache: "no-store" });
-    // 404 means there is no endpoint here at all (a plain static copy), not
-    // that the endpoint is having a bad day.
     const up = res.status !== 404 && res.status < 500;
     setReachable(up);
     return up;
@@ -167,9 +131,6 @@ const SCORE_MEANING = {
   5: "Outstanding — exceptional for the grade",
 };
 
-/* The rules that hold whatever the document is. The identity line above them
-   changes with the paperwork being written: a witness testimony is not a trip
-   feedback, and a model told otherwise writes the wrong title at the top. */
 const SHARED_STYLE = `House style:
 - British English, plain and factual — the register a supervisor actually writes in.
 - Answer with the body text only. Never open with a title, a heading, a form name,
@@ -218,12 +179,8 @@ record.
   and 2 are criticism; 4 and 5 are better than the grade requires.
 ${SHARED_STYLE}`;
 
-/* Trip feedback is the call that leaves `house` alone. The competence paperwork
-   passes `evidenceStyle(...)`, whose subject is the work; given that vocabulary,
-   a trip feedback comes back as a list of jobs. */
 const isFeedback = (house) => house === HOUSE_STYLE;
 
-/** The competence paperwork: same rules, a different document on the desk. */
 export const evidenceStyle = (what) =>
   `You write ${what} for offshore ROV crews. It is a record of what was done and seen at the work site — never a trip feedback, and never a summary of the programme.
 ${SHARED_STYLE}
@@ -239,7 +196,6 @@ ${SHARED_STYLE}
   bullets, no italics. If a text comes back to you without those markers, put
   them in.`;
 
-/** What the server searches the library with — the shape of this trip. */
 function hint(ctx, extra = {}) {
   const f = ctx?.fixed || {};
   return {
@@ -260,8 +216,6 @@ function contextLines(ctx, notes, { setting = true } = {}) {
     setting ? `Work scope: ${f.scope_short || "the workscope"}` : "",
     `Position: ${f.position || "ROV Sub Tech"}`,
     `Vessel: ${f.vessel || "the vessel"}`,
-    /* The trip's own setting. Labelled for what it is: read as a list of this
-       person's achievements, it put jobs in his file that nobody said he did. */
     setting && (ctx?.pools?.task?.length || ctx?.pools?.tool?.length || ctx?.pools?.system?.length)
       ? "What the campaign covered (the scope of the trip — NOT a record of what this person did):"
       : "",
@@ -275,7 +229,6 @@ function contextLines(ctx, notes, { setting = true } = {}) {
 
 const strip = (t) => t.replace(/^["'\s]+|["'\s]+$/g, "");
 
-/** One criterion comment, different from everything already used. */
 export async function freshComment({ label, score, ctx, avoid = [], limit = 170, notes = "" }) {
   const text = await ask(
     HOUSE_STYLE,
@@ -294,7 +247,6 @@ ${avoid.slice(0, 12).map((a) => `- ${a}`).join("\n") || "- (nothing yet)"}`,
   return strip(text).split("\n")[0].slice(0, limit + 30);
 }
 
-/** Rewrites a block you already have, keeping every fact and the score it implies. */
 export async function improve({ text, kind, ctx, instruction = "", notes = "", house = HOUSE_STYLE, maxTokens = 900 }) {
   const what =
     kind === "crew"
@@ -319,7 +271,6 @@ ${text}`,
   return strip(answer);
 }
 
-/** Writes one block from scratch, around the scores and whatever was supplied. */
 export async function writeBlock({
   kind,
   ctx,
@@ -329,14 +280,8 @@ export async function writeBlock({
   house = HOUSE_STYLE,
   maxTokens = 900,
   temperature,
-  /* What the library should be searched with. Left to the notes, the search
-     filled up on the campaign and the vessel and never reached the words that
-     matter — the form and the areas being evidenced. */
   search = null,
   useFacts = false,
-  /* The library is a style guide, and the paperwork in it is written by
-     assessors. A block written in the candidate's own voice must not be shown
-     assessors' wording to follow. */
   library = true,
 }) {
   const scored = Object.entries(criteria || {})
@@ -348,8 +293,6 @@ export async function writeBlock({
       : kind === "evidence"
         ? "the statement the form asks for, three or four short paragraphs, starting with the work itself"
         : "the supervisor's comments on the man: three or four short paragraphs, third person — how he was to have on the shift, what stands out about the way he works, how he came on over the rotation, then the sign-off";
-  /* Only a trip feedback carries scores. Sent an empty score line, the model
-     stopped writing and asked for them — on the paper. */
   const scoring = scored
     ? `\n\nScores given: ${scored}\n1 Has Not Performed · 2 Requires Improvement · 3 On Target · 4 Above Target · 5 Outstanding.\nThe tone must match them. A 3 reads as solid and dependable, not as a shortfall; only a 1 or a 2 is written as a concern.`
     : "";
@@ -368,11 +311,6 @@ ${contextLines(ctx, notes, { setting: !isFeedback(house) })}${scoring}${instruct
   return strip(answer);
 }
 
-/* The supervisor's two calls: one reads the document and answers with a
-   verdict, the other repairs it against a list of faults. Both run cold: a
-   reviewer that improvises is no reviewer. */
-
-/** A second reader: which topics are still unanswered, and what else is wrong. */
 export async function review({ text, topics = [], tasks = [], what = "a document of evidence" }) {
   const listed = [...tasks.map((t) => `TASK: ${t}`), ...topics.map((t) => `AREA: ${t}`)];
   if (!listed.length) return { missing: [], problems: [] };
@@ -399,7 +337,6 @@ ${text}`,
   }
 }
 
-/** Repairs a document against the faults found, keeping everything already right. */
 export async function mend({ text, faults = [], house = HOUSE_STYLE, ctx, notes = "", maxTokens = 2000, library = true }) {
   if (!faults.length) return text;
   const fixed = await ask(
@@ -418,8 +355,6 @@ ${text}`,
   return strip(fixed);
 }
 
-/** Turns a text about someone into that person's own words. A narrow rewrite:
- *  no context, no library, nothing to drift towards. */
 export async function speakAsMe({ text, who = "the candidate", maxTokens = 1400 }) {
   const out = await ask(
     `You rewrite a text so that its speaker is ${who}, writing about their own work. Replace every third-person reference to ${who} with I, me or my, and adjust the verbs. Keep every fact, every paragraph and every **bold** marker exactly as they are. Change nothing else. Answer with the rewritten text only.`,
@@ -429,10 +364,6 @@ export async function speakAsMe({ text, who = "the candidate", maxTokens = 1400 
   return strip(out);
 }
 
-/* Writing that cannot be traced back to a document is invention. These calls
-   fetch the passages a piece of writing should rest on, then judge it against them. */
-
-/** The passages of this person's library that bear on a search. */
 export async function passagesFor(search, n = 10) {
   try {
     const res = await fetch(ENDPOINT, {
@@ -448,11 +379,6 @@ export async function passagesFor(search, n = 10) {
   }
 }
 
-/**
- * The verdict out of an answer that was asked for JSON only. A reply can hold
- * several objects with prose between them, so each balanced object is tried, last
- * first (the one the reader settled on); `wants` names a key the verdict must carry.
- */
 export function verdictIn(answer, wants) {
   const said = String(answer ?? "");
   const found = [];
@@ -483,16 +409,9 @@ export function verdictIn(answer, wants) {
   return null;
 }
 
-/**
- * Which statements in a text have no support in the records. The jobs marked on
- * the document are what the signer attests and are taken as settled; the records
- * ground everything around them, including any job claimed that nobody marked.
- */
 export async function unsupported({ text, passages = [], did = [], who = "", given = {} }) {
   if (!passages.length || !String(text || "").trim()) return [];
   const attested = did.filter(Boolean);
-  /* What the panel put on the form (name, rank, vessel, assessor, date) is not
-     the writing's to invent and not the records' to confirm. */
   const typed = Object.entries(given)
     .filter(([, v]) => String(v || "").trim())
     .map(([k, v]) => `- ${k}: ${String(v).trim()}`);
@@ -524,13 +443,10 @@ ${text}`,
     if (!parsed) throw new Error("no verdict");
     return Array.isArray(parsed.invented) ? parsed.invented.slice(0, 20) : [];
   } catch {
-    /* An answer that cannot be read is not a clean bill of health. Saying so
-       lets the caller tell you the check did not run. */
     throw new Error("the grounding check could not be read");
   }
 }
 
-/** A reader whose only question is whether a person wrote this. */
 export async function soundsHuman({ text, what = "a piece of competence evidence" }) {
   const verdict = await ask(
     `You read paperwork and say whether a working person wrote it or a machine did. Answer with JSON only: {"human":true|false,"faults":["..."]}. Mark it machine-written if it pads, repeats itself, praises instead of recording, uses words nobody says out loud, runs every sentence to the same length, or explains what it is about to say. Each fault is one short sentence naming what to change. A plain, factual, slightly uneven record written by a supervisor is human — do not ask for polish.`,

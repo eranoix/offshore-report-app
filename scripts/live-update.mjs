@@ -1,10 +1,3 @@
-/**
- * A new build arriving on its own on the real site (edge gate, HTTPS, worker
- * script served only with a session), which a local folder cannot reproduce.
- * It publishes nothing: when it says so, deploy and move the alias in another shell.
- *
- *   OFFSHORE_REPORT_EMAIL=... OFFSHORE_REPORT_PASSWORD=... node scripts/live-update.mjs
- */
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import { rmSync } from "node:fs";
@@ -72,7 +65,6 @@ await wait(4000);
 const state = () => evalIn(() => ({
   bundle: [...document.querySelectorAll("script[src]")].map((s) => s.src.split("/").pop()).join(" "),
   controlled: !!navigator.serviceWorker?.controller,
-  /* A leftover offer bar on the live site would mean a build that never arrived. */
   offered: !!document.querySelector(".fresh"),
 }));
 await evalIn(() => navigator.serviceWorker.ready.then(() => true));
@@ -80,8 +72,6 @@ await send("Page.navigate", { url: `${SITE}/caap` });
 await wait(4000);
 const old = await state();
 say(old.controlled, "the worker is serving the live site", old.bundle);
-/* The worker's own script is behind the gate: if the edge ever hands it a
-   redirect instead, no update can arrive at all. */
 const script = await evalIn(async () => {
   const res = await fetch("/sw.js", { cache: "no-store" });
   return { status: res.status, redirected: res.redirected, type: res.headers.get("content-type") };

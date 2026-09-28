@@ -3,21 +3,18 @@ import { available as cloudOn, forgetPhrases, getProfile, putProfile } from "../
 import { forget as forgetLocalPhrases, seenCount } from "../engine/memory";
 import { writeMine } from "../engine/vault";
 
-const PROFILE_KEY = "trip-feedback:profile"; // the same copy the tool keeps, under this account
+const PROFILE_KEY = "trip-feedback:profile";
 const GROUPS = [
   ["crews", "Crew"],
   ["supervisors", "Supervisors"],
   ["vessels", "Vessels"],
 ];
 
-/** Who you are, what the account is holding, and how to change the password. */
 export default function Account() {
   const [me, setMe] = useState(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ current: "", next: "", repeat: "" });
   const [state, setState] = useState({ kind: "", text: "" });
-  /* When something the account holds could not be changed. Saying nothing
-     leaves the screen showing a change that did not happen. */
   const [trouble, setTrouble] = useState("");
   const [learned, setLearned] = useState({ vessels: [], supervisors: [], crews: [] });
   const [local, setLocal] = useState(seenCount);
@@ -35,8 +32,6 @@ export default function Account() {
       .catch(() => {});
   }, []);
 
-  /* Forgetting has to reach both copies: the account, and this browser — which
-     would otherwise offer the name again the next time the tool opens. */
   async function forgetName(group, name) {
     const before = learned;
     const next = { ...learned, [group]: learned[group].filter((v) => v !== name) };
@@ -50,8 +45,6 @@ export default function Account() {
     try {
       await putProfile(next);
     } catch {
-      /* The account still has the name, so the screen must show it again —
-         otherwise it comes back by itself the next time the tool opens. */
       setLearned(before);
       try {
         writeMine(PROFILE_KEY, before);
@@ -66,8 +59,6 @@ export default function Account() {
     if (!confirm("Forget every sentence already printed? They become available again.")) return;
     setTrouble("");
     try {
-      /* The account first: clearing only this browser would look done and then
-         fill up again from the account the next time the app opens. */
       await forgetPhrases();
     } catch {
       setTrouble("The sentences could not be forgotten — the account did not answer. Nothing was changed.");
@@ -79,8 +70,6 @@ export default function Account() {
   }
 
   const mismatch = form.repeat.length > 0 && form.next !== form.repeat;
-  /* The browser records a sentence the moment it reaches paper and sends it up
-     a second and a half later, so it can legitimately be ahead of the account. */
   const waiting = Math.max(0, local - (me?.phrases ?? local));
   const names = GROUPS.filter(([k]) => learned[k].length);
 
@@ -120,8 +109,6 @@ export default function Account() {
         <section className="panel">
           <h2>Held for you</h2>
           <ul className="stats">
-            {/* Every row of the store, whatever it is: trip feedbacks, CAAP packs and
-                rotation plans. */}
             <li>
               <b>{me?.documents ?? "—"}</b>
               <span>saved documents</span>

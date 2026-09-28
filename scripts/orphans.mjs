@@ -1,12 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * The criteria no task closes, asked the other way round: which jobs in the book
- * demonstrate this one? Where the answer is none, the missing job is named and
- * added, marked as coming from the scheme rather than from the paperwork.
- *
- *   node scripts/orphans.mjs          # close them
- *   node scripts/orphans.mjs --dry    # say what it would do
- */
 import { build } from "esbuild";
 import { readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
@@ -77,7 +69,6 @@ const { LEVELS, topicsFor } = await import(shelf);
 const book = JSON.parse(readFileSync(BOOK, "utf8"));
 const groupsOf = () => Object.entries(book.groups).flatMap(([unit, list]) => list.map((t) => ({ ...t, unit })));
 
-/** Every criterion, with the levels whose framework asks for it. */
 const every = new Map();
 for (const level of LEVELS) {
   for (const scheme of ["caap", "crf"]) {
@@ -88,13 +79,6 @@ for (const level of LEVELS) {
     }
   }
 }
-/**
- * A criterion nobody closes — asked level by level.
- *
- * Read across the whole book, a Supervisor's criterion can look closed by a
- * job only a Pilot Technician does, and the Supervisor's own list still has a
- * line with nothing against it. The question is always "for this level".
- */
 const orphans = () => {
   const jobs = groupsOf();
   const out = new Map();
@@ -113,7 +97,6 @@ console.log(`${left.length} criteria nothing closes\n`);
 let linked = 0;
 const stillBare = [];
 for (const c of left) {
-  /* Only the jobs the level that is missing it actually does. */
   const mine = groupsOf().filter((t) => (t.levels || []).includes(c.need));
   const listed = mine.map((t, n) => `${n + 1}. [${t.unit}] ${t.text}`).join("\n");
   const picked = parse(
@@ -132,7 +115,6 @@ for (const c of left) {
     console.log(`  none yet: ${c.text.slice(0, 74)}`);
     continue;
   }
-  /* The same verifier as everywhere else: the reason is what is checked. */
   const kept = parse(
     await ask(
       `You are a verifier reading claims that a piece of offshore work demonstrates one criterion. Answer with JSON only: {"keep":[1,3]} — the claims that stand. A claim stands when the reason names something in THAT job which shows THAT criterion. Strike the vague, the ones needing a second assumption, and the ones that restate the criterion instead of pointing at the job. Keep at least the strongest one if any is defensible at all.`,
@@ -155,8 +137,6 @@ for (const c of left) {
   console.log(`  ${String(use.length).padStart(2)} job(s): ${c.text.slice(0, 66)}`);
 }
 
-/* What the book has no job for at all: the scheme asks for work this person's
-   paperwork never described, and naming it is the useful answer. */
 for (const c of stillBare) {
   const named = parse(
     await ask(

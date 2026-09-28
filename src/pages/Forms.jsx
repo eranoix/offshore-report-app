@@ -5,13 +5,6 @@ import { whyRefuse } from "../engine/sheeting";
 import { catchUpAgain } from "../engine/forms";
 import { extOf, FORM_KINDS, FORM_NAMES, isSheet } from "../engine/formkinds";
 
-/**
- * The forms themselves, open in the document server's own Word editor, so anything a form is can
- * be changed. The days-at-sea tracker is a workbook: it opens in the spreadsheet editor and gets
- * a workbook's guard, since it has no paragraphs.
- * Saving is two steps on purpose: the server's own saves land as a draft, and publishing runs the
- * guard first, because every value is found by its paragraph's name and one lost line fills in silence.
- */
 export default function Forms({ isAdmin }) {
   const [kind, setKind] = useState("witness");
   const [forms, setForms] = useState(null);
@@ -33,7 +26,6 @@ export default function Forms({ isAdmin }) {
   useEffect(() => { look(); }, [look]);
   useEffect(() => { setDraft(null); setSaid(""); setNote(""); }, [kind]);
 
-  /** What was last left in the editor, read back so the guard runs on it. */
   const fetchDraft = useCallback(async () => {
     const res = await fetch(`/api/render?t=draft&kind=${kind}`).catch(() => null);
     if (!res?.ok) return null;
@@ -43,8 +35,6 @@ export default function Forms({ isAdmin }) {
     return bytes;
   }, [kind]);
 
-  /* The editor saved. Nothing goes anywhere: the page only learns there is
-     something it could put in front of the crew. */
   const wasSaved = useCallback(() => {
     fetchDraft().then((got) => {
       if (got) setSaid("Saved here. “Save for everyone” puts it in front of the crew.");
@@ -52,10 +42,6 @@ export default function Forms({ isAdmin }) {
   }, [fetchDraft]);
   const failed = useCallback((e) => setSaid(`The editor: ${e.message}`), []);
 
-  /**
-   * Keep what is on screen, now: the editor saves only when it decides to, so this asks the
-   * document server to hand the file over at once.
-   */
   const saveNow = async () => {
     setBusy("saving");
     try {
@@ -71,7 +57,6 @@ export default function Forms({ isAdmin }) {
     setBusy("");
   };
 
-  /** The form as it prints, straight from the engine that composes it. */
   const asPdf = async () => {
     setBusy("pdf");
     try {
@@ -96,16 +81,9 @@ export default function Forms({ isAdmin }) {
     setBusy("");
   };
 
-  /**
-   * A document that still has every line a value is written on; without one the form would go
-   * out filling in silence. Answers the labels the engine needs to find the printed lines by.
-   */
   const stillADocument = (bytes) => {
     const lost = missingAnchors(bytes, anchors);
     if (lost.length) {
-      /* Which line, and what it was for. "signer is missing" means nothing to
-         somebody who has just been editing a document; "the line who signs it
-         is written on" is the same fact in words they were looking at. */
       const reasons = lost
         .map((slot) => whyKeep(bytes, anchors[slot], anchors).find((z) => z.hard)?.why)
         .filter(Boolean);
@@ -125,22 +103,11 @@ export default function Forms({ isAdmin }) {
       .filter(Boolean);
   };
 
-  /**
-   * A workbook that would still count days after it is published. Its own guard, because the
-   * document guard finds no paragraphs in an .xlsx and waves it through; it catches a formula typed over.
-   */
   const stillAWorkbook = (bytes) => {
     const wrong = whyRefuse(bytes);
     if (wrong.length) throw new Error(wrong[0].why);
   };
 
-  /**
-   * In front of everybody.
-   *
-   * The guard first — whichever guard this kind of file has — and then, for a
-   * document only, where the blanks land on the drawn page. A workbook has no
-   * drawn page to land anything on, so it is not asked for one.
-   */
   const publishThese = async (bytes, why) => {
     let blanks = {};
     if (isSheet(kind)) {
@@ -168,14 +135,11 @@ export default function Forms({ isAdmin }) {
     const moved = await fetch(`/api/render?t=live&kind=${kind}&v=${version}`, { method: "PATCH" });
     if (!moved.ok) throw new Error((await moved.json()).error || "it could not be made the live one");
     setNote(""); setDraft(null);
-    /* This browser holds the form it arrived with; ask again so whoever just changed a form
-       sees it changed without a reload. */
     await catchUpAgain().catch(() => false);
     setSaid(`Saved. Everybody is on version ${version} of the ${FORM_NAMES[kind]} now.`);
     await look();
   };
 
-  /** A form edited somewhere else entirely, brought in. */
   const bringIn = async (file) => {
     if (!file) return;
     setBusy("importing");
@@ -217,8 +181,6 @@ export default function Forms({ isAdmin }) {
 
   return (
     <main className="home forms">
-      {/* Each tab carries what it is as well as what it says: the label on it
-          is one of the things the company can change from this very page. */}
       <div className="doc-bar" role="tablist">
         {FORM_KINDS.map((k) => (
           <button key={k} role="tab" data-kind={k} aria-selected={k === kind}

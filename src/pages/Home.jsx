@@ -14,8 +14,6 @@ const when = (iso) => {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 };
 
-/* The hero is the thing the site makes: a real sheet, drawn by the same engine,
-   lying on the bench at the edge of the page. */
 const SAMPLE_DOC = {
   crew: "", position: "ROV Sub Tech", vessel: "", supervisor: "", supervisorPosition: "ROV Team Lead",
   start: "", end: "", campaign: "flexlay", workScope: V.campaigns.flexlay.scopes[0], draft: false,
@@ -29,7 +27,6 @@ export default function Home({ go }) {
 
   useEffect(() => {
     if (!cloudOn()) return;
-    /* One journey for both lists: they are shown on the same screen. */
     listEverything()
       .then((all) => {
         setSaved(all.filter((d) => (d.kind || "trip") === "trip"));
@@ -50,9 +47,6 @@ export default function Home({ go }) {
     try {
       await deleteDocument(id);
     } catch {
-      /* It is still on the account, so it must still be on the screen: taken
-         off the list and left on the server, it reappears at the next reload
-         and the delete looks like it worked. */
       set(before);
       setTrouble("That one could not be deleted — the account did not answer. Try again.");
     }

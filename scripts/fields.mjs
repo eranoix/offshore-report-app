@@ -1,10 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * Fills each form with unmistakable values and reads the .docx back: a value
- * that is not in the document did not arrive.
- *
- *   node scripts/fields.mjs
- */
 import { build } from "esbuild";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -26,9 +20,6 @@ await build({
     }));
   } }],
 });
-/* The generator is bundled rather than imported: it reaches for "./memory"
-   without an extension, which Vite resolves and raw Node does not. The
-   criteria must come from the same list the page uses. */
 const genBundle = "/tmp/fields-generator.mjs";
 await build({
   entryPoints: [`${ROOT}/src/engine/generator.js`],
@@ -38,8 +29,6 @@ await build({
 const { KEYS: TRIP_KEYS, LABEL: TRIP_LABEL } = await import(genBundle);
 
 const plainFetch = globalThis.fetch;
-/* A way to hand the engine a form that is not the one on disk, so a template
-   somebody has edited can be filled in here without editing the repository. */
 let meddle = null;
 globalThis.fetch = async (url, opts) => {
   const address = String(url);
@@ -50,8 +39,6 @@ globalThis.fetch = async (url, opts) => {
 };
 const { askFor, fillForm } = await import(bundle);
 
-/* Values are also read back off the page rendered by the real layout engine:
-   a value can sit in the XML and still not be printed. */
 const RENDER = process.env.DOCX_UPSTREAM || `http://127.0.0.1:${process.env.DOCX_PORT || 8791}/render`;
 const RKEY = process.env.DOCX_KEY || "";
 const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -93,8 +80,6 @@ const DOC = {
   assessor: "Cornelius Battersby",
   assessorPosition: "ROV Superintendent",
   assessorRelationship: "Supervisor",
-  /* The trip form asks the same questions under its own words. Values that
-     could not be anything else, so a value found in the file was put there. */
   crew: "Bartholomew Quillfeather",
   position: "ROV Pilot Technician",
   vessel: "Vessel Nightjar",
@@ -105,9 +90,6 @@ const DOC = {
   workScope: "Marzipan flexlay campaign",
 };
 
-/* One score per criterion and all of them different where they can be, so a
-   grid read one column left, or one row down, cannot pass. Each comment names
-   its own row for the same reason. */
 const SCORES = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1];
 const TRIP_CRITERIA = Object.fromEntries(TRIP_KEYS.map((k, i) => [k, {
   score: SCORES[i],
@@ -162,9 +144,6 @@ const WANT = {
     ],
   },
   trip: {
-    /* Three, not two: on this form the guidance shares the last page with the
-       signatures, so removing it saves no page; the test is that a filled trip
-       form does not grow to a third page. */
     was: 3,
     ref: "",
     must: [
@@ -193,9 +172,6 @@ const WANT = {
   },
 };
 
-/* The whole file as one run of words: the engine splits a sentence across runs
-   whenever Word feels like it, so the tags come out before anything is looked
-   for. */
 const wordsIn = (bytes) => {
   const zip = unzipSync(new Uint8Array(bytes));
   return Object.keys(zip)
@@ -208,8 +184,6 @@ const wordsIn = (bytes) => {
     .replace(/\s+/g, " ");
 };
 
-/* Read a paragraph at a time, runs joined, as the engine reads a heading: the
-   flat text would also match "(please see reverse for guidance notes)" in the body. */
 const headingsIn = (bytes) => {
   const zip = unzipSync(new Uint8Array(bytes));
   const xml = strFromU8(zip["word/document.xml"]);
@@ -217,10 +191,6 @@ const headingsIn = (bytes) => {
     .map((m) => [...m[0].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((t) => t[1]).join("").trim());
 };
 
-/**
- * The grid, read as a grid: a flat text search finds an "x" whichever column
- * it is in, so this walks the rows and cells and asserts the shape.
- */
 function gridOf(bytes) {
   const zip = unzipSync(new Uint8Array(bytes));
   const xml = strFromU8(zip["word/document.xml"]);
@@ -229,8 +199,6 @@ function gridOf(bytes) {
   const cellsOf = (tr) => [...tr.matchAll(/<w:tc\b[^>]*>[\s\S]*?<\/w:tc>/g)].map((m) => flat(m[0]));
 
   const tables = [...xml.matchAll(/<w:tbl>[\s\S]*?<\/w:tbl>/g)].map((m) => m[0]);
-  /* Found by its first row, never by position: a table added above it would
-     silently move the answer. */
   const grid = tables.find((t) => {
     const head = cellsOf(rowsOf(t)[0] || "");
     return head[0] === "Criteria" && head[6] === "Comments";
@@ -277,29 +245,21 @@ for (const [kind, want] of Object.entries(WANT)) {
   for (const [what, value] of want.must) {
     say(words.includes(value), `${kind} carries ${what}`, words.includes(value) ? "" : `“${value}” is not in the file`);
     if (shown !== null) {
-      /* The engine breaks a line wherever it likes, so the words are looked
-         for without the spaces between them. */
       const flat = (t) => t.replace(/\s+/g, "").toLowerCase();
       say(flat(shown).includes(flat(value)), `${kind} prints ${what} on the page`,
         flat(shown).includes(flat(value)) ? "" : `“${value}” is in the file but not on the page`);
     }
   }
-  /* The guidance heading in either spelling: the CAAP forms write GUIDANCE
-     NOTES FOR, the trip form writes `Guidance Notes;`. */
   const preached = headingsIn(bytes).filter((line) => /^GUIDANCE NOTES\b/i.test(line));
   say(preached.length === 0, `${kind}: the guidance notes are off the back`,
     preached.join(" · ").slice(0, 60));
   say(/SIGNATURE/i.test(words), `${kind}: and the signatures that follow them are still there`);
   if (kind === "trip") gridOf(bytes);
   if (shown === null) say(false, `${kind}: the page could not be laid out — nothing was read off it`);
-  /* Compared with the blank form's length, not an exact page count: what
-     matters is that the guidance page is gone and nothing else went with it. */
   else say(pageCount < want.was, `${kind}: ${pageCount} page${pageCount === 1 ? "" : "s"} instead of ${want.was}`,
     pageCount >= want.was ? "no page was saved" : "");
 }
 
-/* A statement that fits on the page must not tip onto a second one carrying
-   nothing but a signature line. */
 if (RKEY) {
   console.log("\nand what fits stays on one page");
   const long = (n) =>
@@ -317,10 +277,6 @@ if (RKEY) {
   }
 }
 
-/* A renamed label still gets its value: the place is named by the paragraph's
- * w14:paraId, which Word writes itself and which survives editing its text.
- * This renames every label on a form and fills it in anyway.
- */
 if (RKEY) {
   console.log("\nand a renamed label does not lose the value");
   const RENAMED = [
@@ -333,9 +289,6 @@ if (RKEY) {
     if (!address.endsWith("witness.docx")) return bytes;
     const zip = unzipSync(new Uint8Array(bytes));
     let xml = strFromU8(zip["word/document.xml"]);
-    /* Word splits a label across runs, so the paragraph is found by its
-       flattened text (as the engine does) and the new wording goes into the
-       first run with the rest emptied. */
     const paras = [...xml.matchAll(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g)];
     for (const [was, now] of RENAMED) {
       const plain = was.replace(/&amp;/g, "&").toUpperCase();
@@ -353,8 +306,6 @@ if (RKEY) {
     zip["word/document.xml"] = strToU8(xml);
     return Buffer.from(zipSync(zip, { level: 6 }));
   };
-  /* The engine keeps the template it first fetched, so a fresh copy of it is
-     loaded to fetch the edited one. */
   const fresh = await import(`${bundle}?edited=${Date.now()}`);
   const bytes = await fresh.fillForm("witness", { ...DOC, ref: "WT01" }, { text: STATEMENT });
   meddle = null;
@@ -368,10 +319,6 @@ if (RKEY) {
   }
 }
 
-/* The outcome is ticked against the right sentence, for both "met" and "not
- * yet met": the "not yet met" words are split across runs in the form, so both
- * are filled and the mark is read off the rendered page against its sentence.
- */
 if (RKEY) {
   console.log("\nand the outcome is ticked against the right sentence");
   for (const [outcome, wanted] of [["met", "has met"], ["not-yet", "has not yet"]]) {
@@ -389,9 +336,6 @@ if (RKEY) {
         const at = Math.round(item.transform[5]);
         lines.set(at, (lines.get(at) || "") + item.str);
       }
-      /* The sentence wraps, and the mark sits at the start of it: the words
-         that say WHICH sentence it is fall on the line below. So the reading
-         runs on past the mark rather than stopping at the end of its line. */
       const down = [...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, line]) => line);
       down.forEach((line, i) => {
         if (!/^X/.test(line.trim())) return;
@@ -405,9 +349,6 @@ if (RKEY) {
   }
 }
 
-/* Filled by the panel, a value sits on its label's own line, so the dotted
- * lines for handwriting under it must go; signature lines keep theirs.
- */
 if (RKEY) {
   console.log("\nand the form is plain where it is already filled in");
   for (const kind of ["witness", "observation", "knowledge", "feedback"]) {
@@ -416,7 +357,6 @@ if (RKEY) {
     const res = await plainFetch(RENDER, { method: "POST",
       headers: { "content-type": "application/octet-stream", "x-docx-key": RKEY }, body: bytes });
     const file = await pdfjs.getDocument({ data: new Uint8Array(await res.arrayBuffer()) }).promise;
-    /* A line of the page is everything printed at the same height. */
     const lines = new Map();
     for (let n = 1; n <= file.numPages; n += 1) {
       const page = await file.getPage(n);
@@ -426,13 +366,11 @@ if (RKEY) {
         lines.set(at, (lines.get(at) || "") + item.str);
       }
     }
-    /* Above the title: only the company band and the form's own reference box. */
-    const HEAD = 780; /* the band sits at 757, the title block below 710 */
+    const HEAD = 780;
     const aloft = [...lines.entries()]
       .filter(([at]) => Number(at.split(":")[0]) === 1 && Number(at.split(":")[1]) > HEAD)
       .map(([, line]) => line.trim())
       .filter((line) => line && !/Business Management System|northwind\.example/i.test(line))
-      /* The reference box is the form's own, printed on the blank. */
       .filter((line) => !new RegExp(`^${WANT[kind].ref}$`).test(line));
     say(aloft.length === 0, `${kind}: nothing of its own printed above the band`,
       aloft.length ? aloft.join(" · ").slice(0, 60) : "clear");
@@ -448,8 +386,6 @@ if (RKEY) {
       : 0;
     say(note > 0 && apart > 0 && apart < 32, `${kind}: the note sits straight under the title`,
       `${apart}pt below "${(title?.line || "").slice(0, 34)}"`);
-    /* And no blank line anywhere above it either: the heading runs from the
-       programme's name to the note with nothing empty in between. */
     const heading = seen
       .filter((x) => x.line && Number(x.at.split(":")[0]) === 1)
       .sort((a, b) => Number(b.at.split(":")[1]) - Number(a.at.split(":")[1]));
@@ -463,9 +399,6 @@ if (RKEY) {
   }
 }
 
-/* One sheet per document wherever one will do: a length a little past a
- * sheet only adds a second sheet, so the ask never lands there.
- */
 if (RKEY) {
   console.log("\nand one sheet is preferred while one will do");
   const filling = (n) => {
@@ -491,13 +424,8 @@ if (RKEY) {
   }
 }
 
-/* No document may end on a sheet that says nothing: the last rendered page
- * must carry the form's own words, not just the header band and footer.
- */
 if (RKEY) {
   console.log("\nand no document ends on an empty sheet");
-  /* The header band, the footer and the document code are printed on every
-     sheet whether it says anything or not, so they do not count as words. */
   const CHROME = /NW-CAP-\d+|Rev:\s*\d+|Date:\s*\d+\.?\w+\.?\d+|Page \d+ of \d+|Copyright [A-Za-z ]+|seabed-?to-?surface|Business Management System|www\.northwind\.example/gi;
   const filler = (n) => {
     let out = "";
@@ -527,8 +455,6 @@ if (RKEY) {
   }
 }
 
-/* The box must not be shut up against the signatures either: the gap under it
-   is the same gap the form puts between one signature and the next. */
 if (RKEY) {
   console.log("\nand the box stands off the signatures");
   const bytes = await fillForm("witness", { ...DOC, ref: "WT01" },

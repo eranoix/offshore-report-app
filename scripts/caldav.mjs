@@ -1,9 +1,3 @@
-/**
- * The calendar account, held to the requests an iPhone or Mac Calendar actually
- * sends, and to what each side sees after the other changes something.
- *
- *   node scripts/caldav.mjs
- */
 import {
   BLANK_PLAN, changeOccurrence, duplicateDate, eventsIn, marksOf, mergePlans, moveEvent, repeatStarts, repeatWords,
 } from "../src/engine/rotation.js";
@@ -11,7 +5,6 @@ import { collectionsOf, dateFromIcs, davAnswer, hashOf, icsOfDate, profileOf, re
 import { esc, icsOf } from "../src/engine/ics.js";
 
 const fails = [];
-/* A plan with the commonest rotation set — a new plan has none. */
 const SET = { ...BLANK_PLAN, pattern: { on: 28, off: 28, hotelOut: 0, hotelBack: 0, travel: 0 } };
 const say = (ok, label, got = "") => {
   console.log(`${ok ? "  ok " : "FAIL "} ${label}${got ? ` — ${got}` : ""}`);
@@ -39,7 +32,6 @@ say(eventsIn(withGym, "2026-09-01", "2026-09-30").filter((e) => e.id === "g").le
 
 const base = { ...SET, dates: [{ id: "a", what: "A", on: "2026-10-01", every: "once" }, { id: "b", what: "B", on: "2026-10-02", every: "once" }], feed: "f1" };
 const mine = { ...base, dates: [...base.dates.filter((d) => d.id !== "b"), { id: "m", what: "Mine", on: "2026-10-03", every: "once" }], slips: { 3: { from: "2026-10-09" } } };
-/* The account, as the database gives it back: keys in its own order. */
 const theirs = { ...base, dates: [{ every: "once", on: "2026-10-01", what: "A", id: "a" }, base.dates[1], { id: "p", what: "Phone", on: "2026-10-04", every: "once" }], dav: "x1" };
 const merged = mergePlans(base, mine, theirs);
 say(merged.dates.map((d) => d.id).sort().join() === "a,m,p",
@@ -135,8 +127,6 @@ say(ask({ method: "PUT", path: `rotation/x.ics`, body: IPHONE }, after).status =
 say(ask({ method: "PUT", path: `events/${NAME}.ics`, body: IPHONE, ifMatch: '"stale"' }, after).status === 412,
   "a change made against an old copy is refused, not written over the new one");
 
-/* Moved on the site: the phone is sent a new file, keeping what the site
-   does not know about — its time, its zone, its alert. */
 const moved = moveEvent(put.plan, { sort: "family", id: NAME, from: "2026-10-20", to: "2026-10-20" }, "2026-10-22", "2026-10-22");
 const fresh = ask({ method: "GET", path: `events/${NAME}.ics` }, { ...ctx, plan: moved });
 say(fresh.body !== IPHONE && /DTSTART;TZID=America\/Sao_Paulo:20261022T140000/.test(fresh.body)
@@ -144,7 +134,6 @@ say(fresh.body !== IPHONE && /DTSTART;TZID=America\/Sao_Paulo:20261022T140000/.t
   && /TRIGGER:-PT30M/.test(fresh.body) && /LOCATION:Rua Augusta\\, 100/.test(fresh.body),
   "moved on the site, the phone gets it two days on at the same hour, the same event, with its own alert");
 
-/* A birthday sent back from the phone unchanged keeps its lack of a year. */
 const bdayBack = dateFromIcs(bday, "d1", plan.dates[0]).date;
 say(bdayBack.on === "10-02" && bdayBack.every === "year" && bdayBack.cat === "family",
   "a birthday that went out as 2000 comes back as the day and month it was, in its category");

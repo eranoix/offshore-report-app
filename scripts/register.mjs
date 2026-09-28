@@ -1,11 +1,4 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * What a statement may never say: anything about itself (the other copies, what
- * other witnesses cover, what is dealt with elsewhere), such as "The areas covered
- * by other witnesses are not addressed here." Caught before the form is printed.
- *
- *   node scripts/register.mjs
- */
 import { build } from "esbuild";
 
 const bundle = "/tmp/register-review.mjs";
@@ -21,7 +14,6 @@ const say = (ok, label, got = "") => {
   if (!ok) fails.push(label);
 };
 
-/* A real statement, long enough and marked, so nothing else is reported. */
 const REAL =
   "Sam worked on the MV Northstar across mid-water target location, survey, and tooling component " +
   "fitting. He traced a fault in the **Tool Tech backpack** to a wiring issue and repaired it. He ran " +
@@ -34,7 +26,6 @@ const about = (text) =>
 
 say(about(REAL).length === 0, "a statement about the work is left alone");
 
-/* Every way it has been written, and the shapes next to them. */
 const SAID = [
   "The areas covered by other witnesses are not addressed here.",
   "Other copies of this form deal with the remaining areas.",
@@ -49,8 +40,6 @@ for (const line of SAID) {
     found.length ? "" : "went through");
 }
 
-/* And what must not be mistaken for it: a statement may say the candidate
-   worked with others, or that something was handed to another shift. */
 const FINE = [
   "He worked alongside two other technicians on the sheave assembly.",
   "The fault was handed to the other shift with the log written up.",
@@ -61,10 +50,6 @@ for (const line of FINE) {
   say(found.length === 0, `left alone: "${line.slice(0, 46)}…"`, found[0]?.slice(0, 60) || "");
 }
 
-/* And the place the vehicle is flown from: a bare "control van" reads as
- * somebody who has not been on these vessels. What is wrapped in asterisks is the
- * scheme's phrase, quoted, and is not the writer's to change.
- */
 const room = (text) =>
   faults(text, { areas: [], tasks: [], candidate: "Sam", min: 100 })
     .filter((f) => /control van/.test(f));

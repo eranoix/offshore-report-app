@@ -1,13 +1,3 @@
-/**
- * The form, open in Word, on the site as it is really served.
- *
- * The document server fetches the form from a public address and posts the
- * saved file back to one, so this cannot be stubbed: a bench serving from a
- * folder is not an address that server can reach. It runs against a real
- * deployment, signed in, the way a person uses it.
- *
- *   OFFSHORE_REPORT_URL=… OFFSHORE_REPORT_EMAIL=… OFFSHORE_REPORT_PASSWORD=… node scripts/word.mjs
- */
 import { spawn } from "node:child_process";
 import { setTimeout as wait } from "node:timers/promises";
 import WebSocket from "ws";
@@ -72,12 +62,8 @@ const evaluate = (expression) =>
     .then((r) => r.result?.value);
 
 const fails = [];
-/* Six forms are published and the editor has to save every one of them. The
-   run takes minutes, so it proves one per run and the caller says which. */
 const FIRST = "witness";
 const KIND = process.env.OFFSHORE_REPORT_KIND || FIRST;
-/* Repeated rather than imported: this file runs in node and reaches nothing
-   the browser builds. scripts/sheeting.mjs holds the lists to each other. */
 const SHEETS = ["sed"];
 
 const say = (ok, label, got = "") => {
@@ -101,10 +87,6 @@ say(signedIn !== "/login", "signed in", String(signedIn));
 await call("Page.navigate", { url: `${SITE}/forms` });
 await wait(6000);
 
-/* Which form this run is about. The page opens on the first tab, so anything
-   else has to be asked for — and it has to be askable, because "the editor
-   saves" is a claim about every form the site publishes, not about whichever
-   one happens to sort first. */
 if (KIND !== FIRST) {
   await evaluate(
     `(()=>{const t=[...document.querySelectorAll('.doc-bar button')]`
@@ -124,18 +106,11 @@ for (const want of ["Import", "Export", "Export to PDF"]) {
   say(named.some((b) => b === want), `  ${want}`);
 }
 
-/* Putting a form in front of the whole crew is the admin's, and the account
-   this runs as is not one. What is asserted is the refusal, not the button:
-   a bench that signed in as an administrator to reach the button would be
-   testing a world where the lock does not exist. */
 const forAll = named.some((b) => /Save for everyone|Back to the company/.test(b));
 const told = await evaluate(`document.querySelector('.forms-tools .note')?.textContent || ''`);
 say(!forAll && /only an admin/i.test(told || ""),
   "and saving for everybody is the admin's, said so on the page", told || "(nothing said)");
 
-/* The site's own leg to the document server. The browser's leg can be broken
-   separately by a TLS-inspecting network, so the page asks this first to say
-   which side failed. */
 const reach = JSON.parse(await evaluate(
   `fetch('/api/render?t=editor&kind=${KIND}').then(r=>r.json())`
   + `.then(j=>JSON.stringify({up:j.up,at:j.at||''}))`,
@@ -143,9 +118,6 @@ const reach = JSON.parse(await evaluate(
 say(reach.up === true, "the site reaches the document server, and says which leg it tried",
   `up=${reach.up} · ${reach.at}`);
 
-/* The editor itself. It writes an iframe of the document server's own making,
-   so what is asserted is that frame arriving and reporting itself ready —
-   not that a div exists. */
 let up = null;
 for (let n = 0; n < 40; n += 1) {
   await wait(3000);
@@ -160,39 +132,21 @@ for (let n = 0; n < 40; n += 1) {
 say(up.state === "is-open", `the ${SHEETS.includes(KIND) ? "workbook opens in the spreadsheet editor" : "form opens in Word"}`, `${up.state}${up.said ? ` · ${up.said}` : ""}`);
 say(up.frames > 0, "and it is the document server's own editor", up.src.slice(0, 64));
 
-/* The ribbon lives inside that frame. Same origin it is not, so what can be
-   asserted from out here is that the frame is really the editor and really
-   loaded — which the title and the URL both say. */
 const frameUrl = up.src || "";
-/* Served from the document server the site names, not a hard-coded host: the
-   machine's own domain is liable to be refused by filtered networks. */
 say(Boolean(reach.at) && frameUrl.startsWith(reach.at),
   "served from the document server the site names", frameUrl.slice(0, 72));
-/* Which of its editors opened. A workbook handed to the word editor opens as
-   a document of one enormous line and saves back something that is no longer
-   a workbook, so this is not a detail of the address — it is the difference
-   between editing the tracker and destroying it. */
 const WANTED = SHEETS.includes(KIND) ? "spreadsheeteditor" : "documenteditor";
 say(new RegExp(WANTED).test(frameUrl), `and it is the ${SHEETS.includes(KIND) ? "spreadsheet" : "word"} editor, not a viewer`,
   frameUrl.slice(-48));
 
-/* The editor is a cross-origin frame, so saving is proved the way a person
-   does it: click, type and leave, then check the file came back. */
-
-/** What is in the store right now, as a length — 0 when there is nothing. */
 const draftNow = () => evaluate(
   `fetch('/api/render?t=draft&kind=${KIND}').then(r=>r.ok?r.arrayBuffer():null)`
   + `.then(b=>b?b.byteLength:0)`,
 ).then(Number);
 
-/* The length before anything is typed. A draft that merely EXISTS proves
-   nothing — one is left behind by every run — so what is asserted below is
-   that this one is not the one that was already there. */
 const before = await draftNow();
 say(true, "before anything is typed, the draft is", before ? `${before} bytes` : "not there");
 
-/* Into the document itself: the frame fills the box, so the middle of the box
-   is the page. */
 const where = JSON.parse(await evaluate(
   `(()=>{const r=document.querySelector('.word iframe').getBoundingClientRect();` +
   `return JSON.stringify({x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)})})()`,
@@ -207,17 +161,12 @@ const typed = `EDITED BY THE BENCH ${Date.now()}`;
 await call("Input.insertText", { text: typed });
 await wait(3000);
 
-/* Two ways the file comes back, both asked and printed. The press forces a
-   save: error 0 is saved, 4 is "nothing changed", which means nothing was
-   typed (a fault in this bench, not the site). */
 const forced = await evaluate(
   `fetch('/api/render?t=now&kind=${KIND}',{method:'POST'})`
   + `.then(r=>r.json()).then(j=>JSON.stringify(j)).catch(e=>String(e))`,
 );
 await wait(6000);
 
-/* And leaving, which closes the editing session and makes it hand the file
-   back on its own — the way it happens to a person who shuts the tab. */
 await call("Page.navigate", { url: `${SITE}/caap` });
 await wait(20000);
 

@@ -1,4 +1,3 @@
-/** One saved document, with its full contents. */
 import { db, isId, requireSession } from "./_supabase.js";
 
 export default async function handler(req, res) {

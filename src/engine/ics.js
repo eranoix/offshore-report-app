@@ -1,18 +1,9 @@
-/**
- * The rotation as an .ics feed that Google, Apple and Outlook calendars subscribe to.
- * Reminders ride as alarms inside the events, so the phone rings them and no notification
- * server is needed. The countdown ("Home in 12 days") is one all-day event per day for the
- * next fortnight, so it is right on the day even if the feed was fetched last week.
- * Pure: no network, no clock of its own. The caller says what today is.
- */
 import {
   eventsIn, isoOf, dayOf, runsIn, STATE, turnsAcross,
 } from "./rotation.js";
 
 export const ymd = (iso) => iso.replace(/-/g, "");
-/* Text as RFC 5545 wants it: backslash, semicolon, comma and newline escaped. */
 export const esc = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
-/* Lines longer than 75 octets are folded, a space starting each continuation. */
 export function fold(line) {
   const bytes = new TextEncoder().encode(line);
   if (bytes.length <= 75) return line;
@@ -28,26 +19,15 @@ export function fold(line) {
   return out.join("\r\n ");
 }
 
-/** A reminder, `before` whole days ahead of the event, at 18:00 the evening before
- *  when it is one day — the hour a crew-change reminder is wanted. */
 export const alarm = (days, what) => [
   "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(what)}`,
   days === 1 ? "TRIGGER:-PT6H" : `TRIGGER:-P${days}D`, "END:VALARM",
 ];
 
-/**
- * @param plan        the saved rotation
- * @param options.today        ISO date the feed is built on
- * @param options.certificates the certificate rows
- * @param options.name         what to call the calendar
- * @param options.stamp        a fixed DTSTAMP, so the same plan gives the same file
- */
 export function icsOf(plan, { today, certificates = [], name = "Rotation", stamp } = {}) {
   const lines = [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//offshore-report//Rotation//EN", "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH", `X-WR-CALNAME:${esc(name)}`, "X-WR-TIMEZONE:UTC",
-    /* How often to come back for it. Google decides for itself; Apple and
-       Outlook honour this. */
     "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H",
   ];
   for (const v of veventsOf(plan, { today, certificates, stamp })) lines.push(...v.lines);
@@ -55,11 +35,6 @@ export function icsOf(plan, { today, certificates = [], name = "Rotation", stamp
   return lines.map(fold).join("\r\n") + "\r\n";
 }
 
-/**
- * The feed's events one by one, each with its id, what it is (`sort`: run,
- * change, family, holiday, certificate, countdown) and its lines — what the
- * feed is made of, and what the two-way calendar serves as one file each.
- */
 export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
   const from = isoOf(dayOf(today) - 62);
   const to = isoOf(dayOf(today) + 400);
@@ -72,7 +47,6 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
     lines.push(
       "BEGIN:VEVENT", `UID:${uid}@offshore-report`, `DTSTAMP:${dtstamp}`,
       `DTSTART;VALUE=DATE:${ymd(start)}`,
-      /* All-day ends are exclusive: the day after the last one. */
       `DTEND;VALUE=DATE:${ymd(isoOf(dayOf(end) + 1))}`,
       `SUMMARY:${esc(summary)}`, `TRANSP:${transp}`,
       ...(desc ? [`DESCRIPTION:${esc(desc)}`] : []),
@@ -81,7 +55,6 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
     );
   };
 
-  /* The stretches: aboard, home, travelling, hotel — each run once. */
   for (const r of runsIn(plan, from, to)) {
     const st = STATE[r.state];
     event({
@@ -91,7 +64,6 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
     });
   }
 
-  /* Crew changes, with the evening-before reminder. */
   for (const t of turnsAcross(plan, from, to)) {
     const away = t.legs.find((l) => l.state !== "home");
     const home = t.legs.find((l) => l.state === "home");
@@ -105,9 +77,8 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
     }
   }
 
-  /* His events, each occurrence in the window, with their own reminder. */
   for (const e of eventsIn(plan, from, to, { certificates })) {
-    if (e.sort === "state") continue; /* already in the stretches */
+    if (e.sort === "state") continue;
     const isTicket = e.sort === "certificate";
     const days = isTicket ? rem.ticket : e.sort === "family" ? rem.event : 0;
     event({
@@ -118,7 +89,6 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
     });
   }
 
-  /* The countdown, one day at a time for the next fortnight. */
   const turns = turnsAcross(plan, today, isoOf(dayOf(today) + 120));
   for (let k = 0; k < 14; k += 1) {
     const d = isoOf(dayOf(today) + k);
@@ -140,9 +110,6 @@ export function veventsOf(plan, { today, certificates = [], stamp } = {}) {
 }
 
 const unesc = (s) => String(s || "").replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1");
-/* A date from DTSTART/DTEND, whatever form it came in: 20261030,
-   20261030T090000Z, or 20261030T090000 with a TZID. The day is the day as
-   written — a calendar day, which is what this site counts in. */
 const dateOf = (v) => {
   const m = String(v || "").match(/(\d{4})(\d{2})(\d{2})/);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
@@ -153,17 +120,6 @@ const timeOf = (v) => {
 };
 const WEEKDAY = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 0 };
 
-/**
- * The events of an .ics file — a Google Calendar export, or the "secret
- * address in iCal format" of any calendar — as start and end days.
- *
- * All-day events keep their span (their end is exclusive in the file, and
- * inclusive here). Timed events are put on their day, with the time in their
- * description. A yearly repeat stays a yearly event; any other repeat —
- * daily, weekly, monthly — is written out as its occurrences between `from`
- * and `to`, because the calendar here draws days and not rules. A cancelled
- * event, and a single occurrence taken out of a series, are left out.
- */
 export function readIcs(text, { from = "1900-01-01", to = "2999-12-31" } = {}) {
   const lines = String(text || "").replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/);
   const out = [];
@@ -196,8 +152,6 @@ export function readIcs(text, { from = "1900-01-01", to = "2999-12-31" } = {}) {
   return out;
 
   function occurrences(e, lo2, hi2) {
-    /* The last day it covers: an all-day end is exclusive, a timed one is the
-       day it ends on. */
     let last = e.start;
     if (e.end) last = e.endAllDay && dayOf(e.end) > dayOf(e.start) ? isoOf(dayOf(e.end) - 1) : e.end;
     const span = Math.max(0, dayOf(last) - dayOf(e.start));
@@ -228,7 +182,6 @@ export function readIcs(text, { from = "1900-01-01", to = "2999-12-31" } = {}) {
         const d0 = new Date(start * 864e5);
         const months = r.FREQ === "MONTHLY" ? k * step : k * 12 * step;
         const dt = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + months, d0.getUTCDate());
-        /* 31 January has no 31 February: a month without the day is skipped, as calendars do. */
         if (new Date(dt).getUTCDate() === d0.getUTCDate()) cands = [dt / 864e5];
       } else break;
       for (const c of cands) {

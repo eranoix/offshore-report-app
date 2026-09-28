@@ -1,21 +1,10 @@
 const __REPO = decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
-/**
- * What each task proves, read one task at a time at build time, so the panel can
- * say offline which tasks would close the areas still open. Each task gets a whole
- * call and must give a reason for every criterion it picks (a guess cannot write
- * one); a second reading strikes reasons that do not stand up. Writes as it goes.
- *
- *   node scripts/proves.mjs           # rewrite `proves` in tasks.json
- *   node scripts/proves.mjs --dry     # say what it would write
- *   node scripts/proves.mjs --from 40 # carry on from task 40
- */
 import { build } from "esbuild";
 import { readFileSync, writeFileSync } from "node:fs";
 import https from "node:https";
 
 const DRY = process.argv.includes("--dry");
 const FROM = Number((process.argv.find((a) => a.startsWith("--from")) || "").split(/[= ]/)[1] || 0);
-/* Reads only the tasks that came back with nothing. */
 const FILL = process.argv.includes("--fill");
 const BOOK = `${__REPO}/src/engine/tasks.json`;
 const KEY = process.env.AI_KEY;
@@ -25,8 +14,6 @@ if (!KEY) {
 }
 const UPSTREAM = new URL(process.env.AI_UPSTREAM || "https://203.0.113.10:9443/v1/messages");
 const MODEL = process.env.AI_MODEL || "claude-sonnet-4-6";
-/* Three at a time: the limit upstream is tokens a minute, and one at a time
-   spends most of the hour waiting for the network rather than for an answer. */
 const AT_ONCE = 3;
 
 function once(system, user, { maxTokens = 2200, temperature = 0 } = {}) {
@@ -74,7 +61,6 @@ await build({ entryPoints: [`${__REPO}/src/engine/witness.js`], bundle: true, fo
   outfile: shelf, platform: "node", logLevel: "error" });
 const { LEVELS, topicsFor } = await import(shelf);
 
-/* Every criterion of every framework, once, and which frameworks want it. */
 const shelves = new Map();
 for (const level of LEVELS) {
   for (const scheme of ["caap", "crf"]) {
@@ -99,9 +85,7 @@ const parse = (answer, key) => {
   }
 };
 
-/** What one task demonstrates, with the reason it does. */
 async function readOne(task) {
-  /* Only the frameworks this task's own levels are assessed against. */
   const mine = [...shelves.values()].filter((c) => task.levels.some((l) => c.levels.has(l)));
   if (!mine.length) return [];
   const listed = mine.map((c, n) => `${n + 1}. [${c.unit}] ${c.text}`).join("\n");
@@ -119,8 +103,6 @@ async function readOne(task) {
     .filter((p) => p.c);
   if (!picked.length) return [];
 
-  /* The check reads the reasons, not the numbers: a claim with a weak reason
-     is the one that would not survive a verifier. */
   const kept = parse(
     await ask(
       `You are a verifier reading what somebody claims a piece of offshore work demonstrates. For each claim you are given the criterion and the reason given. Answer with JSON only: {"keep":[1,4,5]} — the numbers of the claims that stand, and nothing else.\n\nA claim stands when the reason names something in THAT job which shows THAT criterion. Strike it when the reason is vague, when it describes work the person may also have done but this job does not require, when it needs a second assumption, or when it restates the criterion instead of pointing at the job. Keep the ones that are right — you are checking, not re-deciding.`,
@@ -133,11 +115,6 @@ async function readOne(task) {
   return picked.filter((_, n) => stand.has(n + 1)).map((p) => p.c.text);
 }
 
-/**
- * A second look at a job that proved nothing. Those jobs are named after a make,
- * which the framework never mentions, so the name is read for the kind of
- * equipment it refers to; the work is what is being judged.
- */
 async function readAgain(task) {
   const mine = [...shelves.values()].filter((c) => task.levels.some((l) => c.levels.has(l)));
   if (!mine.length) return [];
@@ -159,7 +136,6 @@ const save = () => {
   writeFileSync(BOOK, `${JSON.stringify(book, null, 2)}\n`);
 };
 
-/* Coming back to fill the empties, what is already known is kept. */
 if (FILL) for (const t of all) proves.set(t.text, t.proves || []);
 
 const queue = FILL ? all.filter((t) => !(t.proves || []).length) : all.slice(FROM);
@@ -175,7 +151,6 @@ const workers = Array.from({ length: AT_ONCE }, async () => {
       process.stdout.write(`  ${task.text} — ${e.message}\n`);
       return [];
     });
-    /* Nothing at all is almost always the name of a make getting in the way. */
     if (!got.length && !FILL) got = await readAgain(task).catch(() => []);
     proves.set(task.text, got);
     done += 1;
